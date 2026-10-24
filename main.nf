@@ -39,6 +39,7 @@ include { TESCORER                  } from './modules/sanger-tol/tescorer/main'
 include { SUBREAD_FEATURECOUNTS     } from './modules/nf-core/subread/featurecounts/main'
 include { SAMTOOLS_VIEW as BAM_TO_CRAM } from './modules/nf-core/samtools/view/main'
 include { SAMTOOLS_INDEX as INDEX_CRAM } from './modules/nf-core/samtools/index/main'
+include { CHECK_HISAT2_ALIGNMENT    } from './modules/local/rnaseq_check/main'
 include { GFFREAD_PROTEIN           } from './modules/sanger-tol/gffread/main'
 include { GFFREAD_CDS               } from './modules/sanger-tol/gffread/main'
 include { softwareVersionsToYAML    } from './subworkflows/nf-core/utils_nfcore_pipeline/main'
@@ -138,10 +139,12 @@ workflow {
     }
 
     ch_assembly_file = file(params.assembly, checkIfExists: true)
-    ch_assembly_meta = [ id: ch_assembly_file.simpleName ]
+    def clean_assembly_id = ch_assembly_file.name.replaceAll(/(\.gz|\.bgz)$/, '').replaceAll(/\.(fa|fasta|fna)$/, '')
+    ch_assembly_meta = [ id: clean_assembly_id ]
 
-    // Transparent on-the-fly decompression for gzipped assemblies (.fa.gz, .fasta.gz)
-    if (params.assembly.toString().endsWith('.gz')) {
+    // Transparent on-the-fly decompression for (b)gzipped assemblies (.fa.gz, .fasta.gz, .fa.bgz)
+    def is_compressed_assembly = params.assembly.toString().endsWith('.gz') || params.assembly.toString().endsWith('.bgz')
+    if (is_compressed_assembly) {
         GUNZIP(
             channel.of([ ch_assembly_meta, ch_assembly_file ])
         )
@@ -151,7 +154,7 @@ workflow {
     }
 
     // FASTA Index
-    if (params.fai && !params.assembly.toString().endsWith('.gz')) {
+    if (params.fai && !is_compressed_assembly) {
         ch_fai = channel.of(file(params.fai, checkIfExists: true))
     } else {
         SAMTOOLS_FAIDX(
@@ -201,36 +204,63 @@ workflow {
     }
 
     // -----------------------------------------------------------------------
-    // Stage 3: RNA-seq Realignment (HISAT2 de novo index + Soft-clip alignment)
+    // Stage 3: RNA-seq Alignment / Pre-computed Inspection
     // -----------------------------------------------------------------------
     ch_primary_bam = channel.empty()
     ch_individual_bams = channel.empty()
+    ch_aligned_merged_bam = channel.empty()
+
+    def precomputed_aln = params.bam ?: null
+    def needs_alignment = true
+
+    if (precomputed_aln) {
+        def aln_file = file(precomputed_aln, checkIfExists: true)
+        def aln_idx = file("${aln_file}.bai").exists() ? file("${aln_file}.bai") :
+                     (file("${aln_file}.crai").exists() ? file("${aln_file}.crai") : [])
+
+        CHECK_HISAT2_ALIGNMENT(
+            channel.of([ [ id: ch_assembly_meta.id ], aln_file, aln_idx ]),
+            ch_assembly.map { _meta, fasta -> fasta }.first()
+        )
+
+        // Evaluate whether header has HISAT2 provenance
+        // In DSL2 Nextflow scripts, we can check or branch
+        ch_checked_aln = CHECK_HISAT2_ALIGNMENT.out.evaluation
+        ch_hisat2_valid = ch_checked_aln.filter { _meta, _file, is_hisat2 -> is_hisat2.toString().trim() == 'true' }
+        ch_hisat2_invalid = ch_checked_aln.filter { _meta, _file, is_hisat2 -> is_hisat2.toString().trim() != 'true' }
+
+        ch_aligned_merged_bam = ch_hisat2_valid.map { meta, aln_f, _res -> [ meta, aln_f ] }
+        ch_primary_bam = ch_hisat2_valid.map { _meta, aln_f, _res -> aln_f }
+    }
 
     if (params.rnaseq_samplesheet) {
         ch_samplesheet = channel.fromPath(params.rnaseq_samplesheet, checkIfExists: true)
-        RNASEQ_ALIGN(
-            ch_assembly,
-            ch_fai,
-            ch_samplesheet
-        )
-        ch_primary_bam = RNASEQ_ALIGN.out.merged_bam.map { _meta, bam -> bam }
-        ch_individual_bams = RNASEQ_ALIGN.out.individual_bams
 
-        // Convert merged BAM to reference-aligned CRAM and index
-        ch_bam_to_cram = RNASEQ_ALIGN.out.merged_bam.map { meta, bam -> [ meta, bam, [] ] }
-        ch_fasta_fai   = ch_assembly.join(ch_fai.map { fai -> [ [ id: ch_assembly_meta.id ], fai ] })
-        BAM_TO_CRAM(
-            ch_bam_to_cram,
-            ch_fasta_fai,
-            [ [], [] ],
-            [ [], [] ],
-            []
-        )
-        INDEX_CRAM(
-            BAM_TO_CRAM.out.cram
-        )
-    } else if (params.bam) {
-        ch_primary_bam = channel.value(file(params.bam, checkIfExists: true))
+        // If no valid precomputed HISAT2 alignment was provided, run RNASEQ_ALIGN
+        if (!precomputed_aln) {
+            RNASEQ_ALIGN(
+                ch_assembly,
+                ch_fai,
+                ch_samplesheet
+            )
+            ch_aligned_merged_bam = RNASEQ_ALIGN.out.merged_bam
+            ch_primary_bam = RNASEQ_ALIGN.out.merged_bam.map { _meta, bam -> bam }
+            ch_individual_bams = RNASEQ_ALIGN.out.individual_bams
+
+            // Convert merged BAM to reference-aligned CRAM and index
+            ch_bam_to_cram = RNASEQ_ALIGN.out.merged_bam.map { meta, bam -> [ meta, bam, [] ] }
+            ch_fasta_fai   = ch_assembly.join(ch_fai.map { fai -> [ [ id: ch_assembly_meta.id ], fai ] })
+            BAM_TO_CRAM(
+                ch_bam_to_cram,
+                ch_fasta_fai,
+                [ [], [] ],
+                [ [], [] ],
+                []
+            )
+            INDEX_CRAM(
+                BAM_TO_CRAM.out.cram
+            )
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -457,8 +487,8 @@ workflow {
     // -----------------------------------------------------------------------
     // Stage 9: RNA-seq Gene Abundance Estimation (featureCounts)
     // -----------------------------------------------------------------------
-    if (params.rnaseq_samplesheet && (params.representative_gtf || !params.skip_gene_prediction)) {
-        ch_counts_input = RNASEQ_ALIGN.out.merged_bam
+    if ((params.rnaseq_samplesheet || params.bam) && (params.representative_gtf || !params.skip_gene_prediction)) {
+        ch_counts_input = ch_aligned_merged_bam
             .map { meta, bam -> [ [ id: ch_assembly_meta.id, single_end: false ], bam ] }
             .join(ch_representative_gtf)
             .map { meta, bam, gtf -> [ meta, [ bam ], gtf ] }
