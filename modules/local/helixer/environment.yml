@@ -1,0 +1,6 @@
+name: helixer
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - bioconda::helixer=0.3.3

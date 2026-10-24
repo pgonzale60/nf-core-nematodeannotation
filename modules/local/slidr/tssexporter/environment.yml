@@ -1,0 +1,7 @@
+name: slidr_tssexporter
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.10
