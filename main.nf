@@ -313,6 +313,16 @@ workflow {
         file_rep_gtf = file(params.representative_gtf, checkIfExists: true)
         ch_representative_gtf = channel.of([ [ id: ch_assembly_meta.id ], file_rep_gtf ])
 
+        // Expose/publish the representative GTF into standard output location
+        ch_assembly.map { meta, _f ->
+            def outdir_annot = file("${params.outdir}/annotation")
+            outdir_annot.mkdirs()
+            def target_gtf = file("${outdir_annot}/${meta.id}.representative.gtf")
+            if (!target_gtf.exists()) {
+                file_rep_gtf.copyTo(target_gtf)
+            }
+        }
+
         ch_plain_fasta = ch_assembly.map { _meta, fasta -> fasta }.first()
 
         if (params.representative_faa) {
@@ -342,12 +352,14 @@ workflow {
                 ch_assembly.map { meta, _f ->
                     def outdir_ipr = file("${params.outdir}/functional_annotation/interproscan")
                     outdir_ipr.mkdirs()
-                    def target_tsv = file("${outdir_ipr}/${meta.id}.iprscan.tsv")
+                    def target_ext_tsv = file_ipr_tsv.name.endsWith('.gz') ? '.iprscan.tsv.gz' : '.iprscan.tsv'
+                    def target_tsv = file("${outdir_ipr}/${meta.id}${target_ext_tsv}")
                     if (!target_tsv.exists()) {
                         file_ipr_tsv.copyTo(target_tsv)
                     }
                     if (file_ipr_gff3) {
-                        def target_gff3 = file("${outdir_ipr}/${meta.id}.iprscan.gff3")
+                        def target_ext_gff = file_ipr_gff3.name.endsWith('.gz') ? '.iprscan.gff3.gz' : '.iprscan.gff3'
+                        def target_gff3 = file("${outdir_ipr}/${meta.id}${target_ext_gff}")
                         if (!target_gff3.exists()) {
                             file_ipr_gff3.copyTo(target_gff3)
                         }
@@ -399,13 +411,15 @@ workflow {
                 ch_assembly.map { meta, _f ->
                     def outdir_ipr = file("${params.outdir}/functional_annotation/interproscan")
                     outdir_ipr.mkdirs()
-                    // Create convenient symlinks/copies in standard output location
-                    def target_tsv = file("${outdir_ipr}/${meta.id}.iprscan.tsv")
+                    // Create convenient symlinks/copies in standard output location preserving compression
+                    def target_ext_tsv = file_ipr_tsv.name.endsWith('.gz') ? '.iprscan.tsv.gz' : '.iprscan.tsv'
+                    def target_tsv = file("${outdir_ipr}/${meta.id}${target_ext_tsv}")
                     if (!target_tsv.exists()) {
                         file_ipr_tsv.copyTo(target_tsv)
                     }
                     if (file_ipr_gff3) {
-                        def target_gff3 = file("${outdir_ipr}/${meta.id}.iprscan.gff3")
+                        def target_ext_gff = file_ipr_gff3.name.endsWith('.gz') ? '.iprscan.gff3.gz' : '.iprscan.gff3'
+                        def target_gff3 = file("${outdir_ipr}/${meta.id}${target_ext_gff}")
                         if (!target_gff3.exists()) {
                             file_ipr_gff3.copyTo(target_gff3)
                         }
@@ -489,9 +503,9 @@ workflow {
     // -----------------------------------------------------------------------
     if ((params.rnaseq_samplesheet || params.bam) && (params.representative_gtf || !params.skip_gene_prediction)) {
         ch_counts_input = ch_aligned_merged_bam
-            .map { meta, bam -> [ [ id: ch_assembly_meta.id, single_end: false ], bam ] }
-            .join(ch_representative_gtf)
-            .map { meta, bam, gtf -> [ meta, [ bam ], gtf ] }
+            .map { meta, bam -> [ ch_assembly_meta.id, bam ] }
+            .join(ch_representative_gtf.map { meta, gtf -> [ meta.id, gtf ] })
+            .map { id, bam, gtf -> [ [ id: id, single_end: false ], [ bam ], gtf ] }
 
         SUBREAD_FEATURECOUNTS(
             ch_counts_input
