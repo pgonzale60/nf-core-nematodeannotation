@@ -39,6 +39,8 @@ include { TESCORER                  } from './modules/sanger-tol/tescorer/main'
 include { SUBREAD_FEATURECOUNTS     } from './modules/nf-core/subread/featurecounts/main'
 include { SAMTOOLS_VIEW as BAM_TO_CRAM } from './modules/nf-core/samtools/view/main'
 include { SAMTOOLS_INDEX as INDEX_CRAM } from './modules/nf-core/samtools/index/main'
+include { GFFREAD_PROTEIN           } from './modules/sanger-tol/gffread/main'
+include { GFFREAD_CDS               } from './modules/sanger-tol/gffread/main'
 include { softwareVersionsToYAML    } from './subworkflows/nf-core/utils_nfcore_pipeline/main'
 
 // Top-level Parameters
@@ -85,6 +87,8 @@ params.busco_lineages_path = params.busco_lineages_path ?: null
 params.skip_gene_prediction = params.skip_gene_prediction ?: false
 
 // Pre-computed bypass parameters
+params.representative_gtf   = params.representative_gtf   ?: null
+params.representative_faa   = params.representative_faa   ?: null
 params.braker_gtf          = params.braker_gtf          ?: null
 params.braker_aa           = params.braker_aa           ?: null
 params.braker_hints        = params.braker_hints        ?: null
@@ -114,6 +118,8 @@ workflow {
           --interproscan_dir     Path to InterProScan data directory [optional]
 
         Bypass / Pre-computed options:
+          --representative_gtf   Pre-computed winning gene models GTF (bypasses BRAKER/Helixer/TSEBRA tournament)
+          --representative_faa   Pre-computed winning proteins FASTA [optional, derived from GTF if omitted]
           --braker_gtf           Pre-computed BRAKER GTF
           --braker_aa            Pre-computed BRAKER proteins
           --helixer_gff3         Pre-computed Helixer GFF3
@@ -266,7 +272,66 @@ workflow {
     // -----------------------------------------------------------------------
     ch_consensus_gtf = channel.empty()
 
-    if (!params.skip_gene_prediction) {
+    // -----------------------------------------------------------------------
+    // Stage 5: Dual-Evidence Gene Prediction (or Direct Representative Bypass)
+    // -----------------------------------------------------------------------
+    ch_representative_gtf = channel.empty()
+    ch_representative_faa = channel.empty()
+    ch_representative_fna = channel.empty()
+
+    if (params.representative_gtf) {
+        file_rep_gtf = file(params.representative_gtf, checkIfExists: true)
+        ch_representative_gtf = channel.of([ [ id: ch_assembly_meta.id ], file_rep_gtf ])
+
+        ch_plain_fasta = ch_assembly.map { _meta, fasta -> fasta }.first()
+
+        if (params.representative_faa) {
+            file_rep_faa = file(params.representative_faa, checkIfExists: true)
+            ch_representative_faa = channel.of([ [ id: ch_assembly_meta.id ], file_rep_faa ])
+        } else {
+            GFFREAD_PROTEIN(
+                ch_representative_gtf,
+                ch_plain_fasta
+            )
+            ch_representative_faa = GFFREAD_PROTEIN.out.aa
+        }
+
+        GFFREAD_CDS(
+            ch_representative_gtf,
+            ch_plain_fasta
+        )
+        ch_representative_fna = GFFREAD_CDS.out.cds
+
+        // -------------------------------------------------------------------
+        // Stage 6: Functional Annotation (InterProScan)
+        // -------------------------------------------------------------------
+        if (!params.skip_functional_annotation) {
+            if (params.interproscan_tsv) {
+                file_ipr_tsv  = file(params.interproscan_tsv, checkIfExists: true)
+                file_ipr_gff3 = params.interproscan_gff3 ? file(params.interproscan_gff3, checkIfExists: true) : null
+                ch_assembly.map { meta, _f ->
+                    def outdir_ipr = file("${params.outdir}/functional_annotation/interproscan")
+                    outdir_ipr.mkdirs()
+                    def target_tsv = file("${outdir_ipr}/${meta.id}.iprscan.tsv")
+                    if (!target_tsv.exists()) {
+                        file_ipr_tsv.copyTo(target_tsv)
+                    }
+                    if (file_ipr_gff3) {
+                        def target_gff3 = file("${outdir_ipr}/${meta.id}.iprscan.gff3")
+                        if (!target_gff3.exists()) {
+                            file_ipr_gff3.copyTo(target_gff3)
+                        }
+                    }
+                }
+            } else if (params.interproscan_dir) {
+                ch_ipr_dir = file(params.interproscan_dir, checkIfExists: true)
+                FUNCTIONAL_ANNOTATION(
+                    ch_representative_faa,
+                    ch_ipr_dir
+                )
+            }
+        }
+    } else if (!params.skip_gene_prediction) {
         ch_proteins       = params.proteins ? file(params.proteins, checkIfExists: true) : []
         ch_busco_lineages = params.busco_lineages_path ? file(params.busco_lineages_path, checkIfExists: true) : []
 
@@ -289,7 +354,9 @@ workflow {
             file_helixer_gff3,
             file_helixer_gtf
         )
-        ch_consensus_gtf = GENE_PREDICTION.out.consensus_gtf
+        ch_representative_gtf = GENE_PREDICTION.out.representative_gtf
+        ch_representative_faa = GENE_PREDICTION.out.representative_faa
+        ch_representative_fna = GENE_PREDICTION.out.representative_fna
 
         // -------------------------------------------------------------------
         // Stage 6: Functional Annotation (InterProScan)
@@ -330,12 +397,12 @@ workflow {
     // Stage 7: Operon Demarcation (SLOPPR)
     // -----------------------------------------------------------------------
     ch_operons_gff3 = channel.empty()
-    if (!params.skip_sl_discovery && !params.skip_gene_prediction) {
-        ch_representative_gtf = GENE_PREDICTION.out.representative_gtf.map { _meta, gtf -> gtf }.first()
+    if (!params.skip_sl_discovery && (params.representative_gtf || !params.skip_gene_prediction)) {
+        ch_first_rep_gtf = ch_representative_gtf.map { _meta, gtf -> gtf }.first()
 
         SLOPPR_OPERONS(
             SPLICED_LEADER_DISCOVERY.out.sl_bed,
-            ch_representative_gtf,
+            ch_first_rep_gtf,
             params.max_dist
         )
         ch_operons_gff3 = SLOPPR_OPERONS.out.operons_gff
@@ -344,7 +411,7 @@ workflow {
     // -----------------------------------------------------------------------
     // Stage 8: Transposable Element (TE) Multi-Evidence Scoring
     // -----------------------------------------------------------------------
-    if (!params.skip_gene_prediction && !params.skip_te_scoring) {
+    if ((params.representative_gtf || !params.skip_gene_prediction) && !params.skip_te_scoring) {
         ch_te_gff3 = (!params.skip_repeats) ? REPEAT_ANNOTATION.out.te_gff3 : channel.empty()
 
         ch_sat_bed = params.satellites_bed ?
@@ -361,8 +428,8 @@ workflow {
 
         // Combine all evidence tracks for the representative models
         // Remap all supplementary tracks to match the primary assembly meta ID
-        ch_scorer_input = GENE_PREDICTION.out.representative_gtf
-            .join(GENE_PREDICTION.out.representative_aa)
+        ch_scorer_input = ch_representative_gtf
+            .join(ch_representative_faa)
             .join(ch_ipr_tsv.map { _m, f -> [ [ id: ch_assembly_meta.id ], f ] }, remainder: true)
             .join(ch_te_gff3.map { _m, f -> [ [ id: ch_assembly_meta.id ], f ] }, remainder: true)
             .join(ch_sat_bed.map { _m, f -> [ [ id: ch_assembly_meta.id ], f ] }, remainder: true)
@@ -390,10 +457,10 @@ workflow {
     // -----------------------------------------------------------------------
     // Stage 9: RNA-seq Gene Abundance Estimation (featureCounts)
     // -----------------------------------------------------------------------
-    if (params.rnaseq_samplesheet && !params.skip_gene_prediction) {
+    if (params.rnaseq_samplesheet && (params.representative_gtf || !params.skip_gene_prediction)) {
         ch_counts_input = RNASEQ_ALIGN.out.merged_bam
             .map { meta, bam -> [ [ id: ch_assembly_meta.id, single_end: false ], bam ] }
-            .join(GENE_PREDICTION.out.representative_gtf)
+            .join(ch_representative_gtf)
             .map { meta, bam, gtf -> [ meta, [ bam ], gtf ] }
 
         SUBREAD_FEATURECOUNTS(
