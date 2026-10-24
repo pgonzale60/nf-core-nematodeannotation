@@ -1,0 +1,37 @@
+process BEDTOOLS_SUBTRACT {
+    tag "${meta.id}"
+    label 'process_single'
+
+    conda "${moduleDir}/environment.yml"
+    container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
+        ? 'https://depot.galaxyproject.org/singularity/bedtools:2.31.1--hf5e1c6e_0'
+        : 'quay.io/biocontainers/bedtools:2.31.1--hf5e1c6e_0'}"
+
+    input:
+    tuple val(meta), path(intervals1), path(intervals2)
+
+    output:
+    tuple val(meta), path("*.bed"), emit: bed
+    tuple val("${task.process}"), val('bedtools'), eval("bedtools --version | sed -e 's/bedtools v//g'"), topic: versions, emit: versions_bedtools
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: ("${intervals1}" == "${meta.id}.bed" ? "${meta.id}.subtracted" : "${meta.id}")
+    """
+    bedtools \\
+        subtract \\
+        -a ${intervals1} \\
+        -b ${intervals2} \\
+        ${args} \\
+        > ${prefix}.bed
+    """
+
+    stub:
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    """
+    touch ${prefix}.bed
+    """
+}

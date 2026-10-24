@@ -1,0 +1,109 @@
+name: "satelliteprofiler"
+description: |
+  Profile, classify, and annotate satellite DNA arrays from TRF/VSEARCH/BLASTN alignments.
+  Implements canonical circular phasing via Booth's algorithm, family abundance ranking,
+  array clustering, and dual GFF3 emission.
+keywords:
+  - satellite
+  - tandem_repeat
+  - profiling
+  - phasing
+  - gff3
+tools:
+  - python:
+      description: Python interpreter used to run satellite_profiler.py.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - bed:
+        type: file
+        description: Sorted BED file containing BLASTN alignments of centroids against the assembly
+        pattern: "*.sorted.bed"
+        ontologies:
+          - edam: "http://edamontology.org/format_3003"
+    - centroids:
+        type: file
+        description: FASTA file containing clustered centroid sequences
+        pattern: "*.{fa,fasta,fna}{,.gz}"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929"
+  - max_gap:
+      type: integer
+      description: Maximum gap in base pairs between monomers to cluster into an array
+output:
+  arrays_gff3:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*_satellite_arrays.gff3":
+          type: file
+          description: GFF3 file containing resolved satellite arrays
+          pattern: "*_satellite_arrays.gff3"
+          ontologies:
+            - edam: "http://edamontology.org/format_1975"
+  monomers_gff3:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*_satellite_monomers.gff3":
+          type: file
+          description: GFF3 file containing individual satellite monomer units
+          pattern: "*_satellite_monomers.gff3"
+          ontologies:
+            - edam: "http://edamontology.org/format_1975"
+  families_tsv:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*_satellite_families.tsv":
+          type: file
+          description: TSV table of ranked satellite families with genomic coverage metrics
+          pattern: "*_satellite_families.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  library_fasta:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*_satellite_monomers.fasta":
+          type: file
+          description: Phase-normalized consensus FASTA library
+          pattern: "*_satellite_monomers.fasta"
+          ontologies:
+            - edam: "http://edamontology.org/format_1929"
+  versions_python:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - python3 --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - python3 --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

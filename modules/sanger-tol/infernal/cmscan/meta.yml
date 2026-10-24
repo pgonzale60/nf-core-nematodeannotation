@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "infernal_cmscan"
+description: "Search sequences against Rfam covariance models using Infernal cmscan"
+keywords:
+  - ncrna
+  - rfam
+  - infernal
+  - cmscan
+tools:
+  - infernal:
+      description: "Inference of RNA alignments"
+      homepage: "http://eddylab.org/infernal/"
+      documentation: "http://eddylab.org/infernal/Userguide.pdf"
+      doi: "10.1093/bioinformatics/btt509"
+      licence: ["BSD-3-Clause"]
+      identifier: biotools:infernal
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - fasta:
+        type: file
+        description: Input genome fasta file
+        pattern: "*.{fa,fasta}"
+  - cmfile:
+      type: file
+      description: Rfam covariance model database file
+      pattern: "*.cm"
+
+output:
+  tbl:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.tbl.gz":
+          type: file
+          description: Compressed raw Infernal tabular hits output
+          pattern: "*.tbl.gz"
+  log:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.cmscan.log":
+          type: file
+          description: Standard log output of cmscan execution
+          pattern: "*.cmscan.log"
+  versions_infernal:
+    - - ${task.process}:
+          type: string
+          description: Name of the process
+      - infernal:
+          type: string
+          description: The name of the tool
+      - "cmscan -h | sed '2!d;s/.*INFERNAL //;s/ .*//'":
+          type: eval
+          description: The expression to obtain the version of the tool
+
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: Name of the process
+      - infernal:
+          type: string
+          description: The name of the tool
+      - "cmscan -h | sed '2!d;s/.*INFERNAL //;s/ .*//'":
+          type: eval
+          description: The expression to obtain the version of the tool
+
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

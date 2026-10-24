@@ -1,0 +1,7 @@
+name: sloppr_operons
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.10

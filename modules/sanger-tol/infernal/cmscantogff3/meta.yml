@@ -1,0 +1,79 @@
+name: "infernal_cmscantogff3"
+description: "Convert Infernal cmscan tabular hits output to GFF3 and exclusion BED format"
+keywords:
+  - ncrna
+  - infernal
+  - cmscan
+  - gff3
+  - bed
+tools:
+  - perl:
+      description: "Practical Extraction and Report Language"
+      homepage: "https://www.perl.org/"
+      documentation: "https://perldoc.perl.org/"
+      licence:
+        - "Artistic-1.0-Perl OR GPL-1.0-or-later"
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - tbl:
+        type: file
+        description: Raw or gzipped Infernal cmscan tabular hits file
+        pattern: "*.{tbl,tbl.gz}"
+
+        ontologies: []
+output:
+  gff3:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.ncrna.gff3":
+          type: file
+          description: Non-coding RNA annotations in GFF3 format
+          pattern: "*.ncrna.gff3"
+          ontologies: []
+  exclusion_bed:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*_exclusion.raw.bed":
+          type: file
+          description: Raw BED file of non-coding RNA coordinates for gene caller exclusion
+          pattern: "*_exclusion.raw.bed"
+          ontologies: []
+  versions_perl:
+    - - ${task.process}:
+          type: string
+          description: Name of the process
+      - perl:
+          type: string
+          description: The name of the tool
+      - perl -v | sed -n '2p' | awk '{print \$4}' | tr -d '(),':
+          type: eval
+          description: The expression to obtain the version of the tool
+
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: Name of the process
+      - perl:
+          type: string
+          description: The name of the tool
+      - perl -v | sed -n '2p' | awk '{print \$4}' | tr -d '(),':
+          type: eval
+          description: The expression to obtain the version of the tool
+
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"
