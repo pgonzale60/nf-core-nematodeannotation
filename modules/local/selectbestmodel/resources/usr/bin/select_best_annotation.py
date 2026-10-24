@@ -4,12 +4,13 @@ select_best_annotation.py — Run BUSCO on multiple candidate protein sets, comp
 and export the winning annotation and decision table.
 """
 
-import os
-import sys
 import argparse
-import subprocess
+import os
 import re
 import shutil
+import subprocess
+import sys
+
 
 def run_busco_on_fasta(fasta_path, candidate_name, lineage, lineage_dir, cpus):
     """Run offline protein BUSCO and return complete percentage."""
@@ -17,27 +18,34 @@ def run_busco_on_fasta(fasta_path, candidate_name, lineage, lineage_dir, cpus):
         return -1.0, "Missing FASTA"
 
     # Verify fasta has records
-    with open(fasta_path, 'r') as f:
-        has_records = any(line.startswith('>') for line in f)
+    with open(fasta_path, "r") as f:
+        has_records = any(line.startswith(">") for line in f)
     if not has_records:
         return -1.0, "Empty FASTA"
 
     out_prefix = f"busco_{candidate_name}"
     cmd = [
         "busco",
-        "--cpu", str(cpus),
-        "--in", fasta_path,
-        "--out", out_prefix,
-        "--mode", "proteins",
-        "--lineage_dataset", lineage,
-        "--offline"
+        "--cpu",
+        str(cpus),
+        "--in",
+        fasta_path,
+        "--out",
+        out_prefix,
+        "--mode",
+        "proteins",
+        "--lineage_dataset",
+        lineage,
+        "--offline",
     ]
     if lineage_dir:
         cmd.extend(["--download_path", lineage_dir])
 
     print(f"=== Running BUSCO on {candidate_name} ({fasta_path}) ===")
     try:
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        subprocess.run(
+            cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
     except subprocess.CalledProcessError as e:
         print(f"WARNING: BUSCO failed for {candidate_name}: {e.stderr[:300]}")
         return -1.0, f"BUSCO execution failed: {e.returncode}"
@@ -55,14 +63,17 @@ def run_busco_on_fasta(fasta_path, candidate_name, lineage, lineage_dir, cpus):
     completeness = -1.0
     summary_str = "No summary found"
     if summary_txt and os.path.exists(summary_txt):
-        with open(summary_txt, 'r') as f:
+        with open(summary_txt, "r") as f:
             content = f.read()
-            m = re.search(r'C:(\d+\.?\d*)%\[S:(\d+\.?\d*)%,D:(\d+\.?\d*)%\],F:(\d+\.?\d*)%,M:(\d+\.?\d*)%', content)
+            m = re.search(
+                r"C:(\d+\.?\d*)%\[S:(\d+\.?\d*)%,D:(\d+\.?\d*)%\],F:(\d+\.?\d*)%,M:(\d+\.?\d*)%",
+                content,
+            )
             if m:
                 completeness = float(m.group(1))
                 summary_str = m.group(0)
             else:
-                m_simple = re.search(r'C:(\d+\.?\d*)%', content)
+                m_simple = re.search(r"C:(\d+\.?\d*)%", content)
                 if m_simple:
                     completeness = float(m_simple.group(1))
                     summary_str = m_simple.group(0)
@@ -75,8 +86,11 @@ def run_busco_on_fasta(fasta_path, candidate_name, lineage, lineage_dir, cpus):
 
     return completeness, summary_str
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate multiple gene predictions via BUSCO and select best.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate multiple gene predictions via BUSCO and select best."
+    )
     parser.add_argument("--lineage", default="chromadorea_odb12")
     parser.add_argument("--lineage-dir", default="")
     parser.add_argument("--cpus", type=int, default=4)
@@ -84,8 +98,13 @@ def main():
     parser.add_argument("--outdir", default=".")
 
     # Candidate pairs: --candidate Name gtf aa
-    parser.add_argument("--candidate", action="append", nargs=3, metavar=("NAME", "GTF", "AA"),
-                        help="Candidate model: --candidate NAME path/to/gtf path/to/aa")
+    parser.add_argument(
+        "--candidate",
+        action="append",
+        nargs=3,
+        metavar=("NAME", "GTF", "AA"),
+        help="Candidate model: --candidate NAME path/to/gtf path/to/aa",
+    )
 
     args = parser.parse_args()
 
@@ -102,14 +121,18 @@ def main():
             print(f"Skipping {name}: AA not available ({aa})")
             continue
 
-        comp, summary = run_busco_on_fasta(aa, name, args.lineage, args.lineage_dir, args.cpus)
-        results.append({
-            "name": name,
-            "gtf": os.path.abspath(gtf),
-            "aa": os.path.abspath(aa),
-            "completeness": comp,
-            "summary": summary
-        })
+        comp, summary = run_busco_on_fasta(
+            aa, name, args.lineage, args.lineage_dir, args.cpus
+        )
+        results.append(
+            {
+                "name": name,
+                "gtf": os.path.abspath(gtf),
+                "aa": os.path.abspath(aa),
+                "completeness": comp,
+                "summary": summary,
+            }
+        )
 
     if not results:
         print("ERROR: No candidates could be evaluated.")
@@ -122,7 +145,9 @@ def main():
     print("\n================== BUSCO TOURNAMENT SUMMARY ==================")
     for r in results:
         star = " ★ (WINNER)" if r["name"] == winner["name"] else ""
-        print(f"  {r['name']:<18}: Complete = {r['completeness']:>5.2f}% | {r['summary']}{star}")
+        print(
+            f"  {r['name']:<18}: Complete = {r['completeness']:>5.2f}% | {r['summary']}{star}"
+        )
     print("==============================================================\n")
 
     out_gtf = os.path.join(args.outdir, f"{args.prefix}.gtf")
@@ -134,16 +159,21 @@ def main():
     if os.path.exists(out_aa) or os.path.islink(out_aa):
         os.remove(out_aa)
 
-    os.symlink(winner['gtf'], out_gtf)
-    os.symlink(winner['aa'], out_aa)
+    os.symlink(winner["gtf"], out_gtf)
+    os.symlink(winner["aa"], out_aa)
 
     with open(out_tsv, "w") as f:
-        f.write("Rank\tCandidate\tBUSCO_Complete_Pct\tSummary\tStatus\tGTF_Path\tAA_Path\n")
+        f.write(
+            "Rank\tCandidate\tBUSCO_Complete_Pct\tSummary\tStatus\tGTF_Path\tAA_Path\n"
+        )
         for i, r in enumerate(results, 1):
             status = "SELECTED" if r["name"] == winner["name"] else "REJECTED"
-            f.write(f"{i}\t{r['name']}\t{r['completeness']:.2f}\t{r['summary']}\t{status}\t{r['gtf']}\t{r['aa']}\n")
+            f.write(
+                f"{i}\t{r['name']}\t{r['completeness']:.2f}\t{r['summary']}\t{status}\t{r['gtf']}\t{r['aa']}\n"
+            )
 
     print(f"Exported winning model to {out_gtf} and {out_aa}")
+
 
 if __name__ == "__main__":
     main()

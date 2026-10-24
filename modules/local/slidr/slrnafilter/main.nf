@@ -56,7 +56,7 @@ process SLIDR_SLRNAFILTER {
     def overlap  = max_overlap ?: 10
 
     """
-    # Tool: slidr_filter_sl_rna.py | Script-SHA: c8eebd9deb16fdec
+    # Tool: slidr_filter_sl_rna.py | Script-SHA: e33294de7967a926
     slidr_filter_sl_rna.py \\
         --blast ${blast} \\
         --centroids ${centroids} \\

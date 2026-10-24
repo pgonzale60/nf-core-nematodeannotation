@@ -65,7 +65,7 @@ process SLIDR_CONSENSUS {
     def rfam_opt = rfam_gff ? "--rfam-gff ${rfam_gff}" : ""
 
     """
-    # Tool: slidr_consensus.py | Script-SHA: 91ebac3ea90150f9
+    # Tool: slidr_consensus.py | Script-SHA: 785dbd24c215530d
     slidr_consensus.py \\
         --sites ${sites} \\
         --readinfo ${readinfo} \\

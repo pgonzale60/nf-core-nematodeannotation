@@ -27,7 +27,7 @@ process SLIDR_EXTRACTTAILS {
     def stranded = task.ext.strandedness ?: "0"
 
     """
-    # Tool: slidr_extract_tails.py | Script-SHA: b2f5da18cba26d5d
+    # Tool: slidr_extract_tails.py | Script-SHA: be1b8c2b342f5d7f
     slidr_extract_tails.py \\
         --bam "${bam}" \\
         --fasta "${fasta}" \\

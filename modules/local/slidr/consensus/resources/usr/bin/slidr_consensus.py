@@ -57,7 +57,6 @@ import os
 import re
 import statistics
 import sys
-from typing import Dict, List, Optional, Tuple
 
 
 def open_maybe_gzip(path: str):
@@ -80,7 +79,7 @@ def library_label(path: str) -> str:
     return base.split(".")[0]
 
 
-def load_readinfo(path: str) -> Dict[str, str]:
+def load_readinfo(path: str) -> dict[str, str]:
     """
     read_id -> centroid_id, from SLIDR_CLUSTERTAILS.
 
@@ -96,35 +95,38 @@ def load_readinfo(path: str) -> Dict[str, str]:
     return mapping
 
 
-def load_leader_loci(path: str) -> Dict[str, List[dict]]:
+def load_leader_loci(path: str) -> dict[str, list[dict]]:
     """
     centroid_id -> [leader RNA locus, ...], from SLIDR_SLRNASITES.
 
     Columns: centroid_id, chrom, sl_start, sl_end, strand, sl_seq, donor_motif,
              sm_motif, sl_rna_seq
     """
-    loci: Dict[str, List[dict]] = collections.defaultdict(list)
+    loci: dict[str, list[dict]] = collections.defaultdict(list)
     with open(path, "rt") as fh:
         for line in fh:
             parts = line.rstrip("\n").split("\t")
             if len(parts) < 9 or parts[0] == "centroid_id":
                 continue
             try:
-                loci[parts[0]].append({
-                    "chrom": parts[1],
-                    "start": int(parts[2]),
-                    "end": int(parts[3]),
-                    "strand": parts[4],
-                    "sl_seq": parts[5],
-                    "sl_rna_seq": parts[8],
-                })
+                loci[parts[0]].append(
+                    {
+                        "chrom": parts[1],
+                        "start": int(parts[2]),
+                        "end": int(parts[3]),
+                        "strand": parts[4],
+                        "sl_seq": parts[5],
+                        "sl_rna_seq": parts[8],
+                    }
+                )
             except ValueError:
                 continue
     return loci
 
 
-def passes_leader_distance(pos: int, chrom: str, strand: str, locus: dict,
-                           max_dist: int) -> bool:
+def passes_leader_distance(
+    pos: int, chrom: str, strand: str, locus: dict, max_dist: int
+) -> bool:
     """
     True when the acceptor site is far enough from the leader RNA gene to be a
     genuine trans-splice site of some other gene.
@@ -146,7 +148,9 @@ def passes_leader_distance(pos: int, chrom: str, strand: str, locus: dict,
     return d > max_dist
 
 
-def load_rrna_intervals(path: Optional[str], flank: int = 500) -> Dict[str, List[Tuple[int, int]]]:
+def load_rrna_intervals(
+    path: str | None, flank: int = 500
+) -> dict[str, list[tuple[int, int]]]:
     """
     Load rRNA/rDNA feature intervals from GFF3 (Barrnap or Infernal cmscan output).
     If a comprehensive ncRNA GFF3 is supplied, filters specifically for rRNA features
@@ -157,7 +161,10 @@ def load_rrna_intervals(path: Optional[str], flank: int = 500) -> Dict[str, List
     if not path or not os.path.exists(path):
         return {}
     intervals = collections.defaultdict(list)
-    rrna_patterns = re.compile(r"rRNA|ribosomal|RF00001|RF00002|RF01959|RF01960|RF02540|RF02541|RF02542|RF02543", re.IGNORECASE)
+    rrna_patterns = re.compile(
+        r"rRNA|ribosomal|RF00001|RF00002|RF01959|RF01960|RF02540|RF02541|RF02542|RF02543",
+        re.IGNORECASE,
+    )
     with open_maybe_gzip(path) as fh:
         for line in fh:
             if line.startswith("#"):
@@ -166,7 +173,11 @@ def load_rrna_intervals(path: Optional[str], flank: int = 500) -> Dict[str, List
             if len(parts) < 5:
                 continue
             # If line has attributes, ensure it represents an rRNA feature
-            if len(parts) >= 9 and not rrna_patterns.search(parts[8]) and not rrna_patterns.search(parts[2]):
+            if (
+                len(parts) >= 9
+                and not rrna_patterns.search(parts[8])
+                and not rrna_patterns.search(parts[2])
+            ):
                 continue
             chrom = parts[0]
             try:
@@ -189,7 +200,9 @@ def load_rrna_intervals(path: Optional[str], flank: int = 500) -> Dict[str, List
     return merged
 
 
-def is_in_rrna(chrom: str, pos_0based: int, rrna_intervals: Dict[str, List[List[int]]]) -> bool:
+def is_in_rrna(
+    chrom: str, pos_0based: int, rrna_intervals: dict[str, list[list[int]]]
+) -> bool:
     """Check if a coordinate falls inside any expanded rRNA/rDNA interval."""
     if chrom not in rrna_intervals:
         return False
@@ -201,9 +214,14 @@ def is_in_rrna(chrom: str, pos_0based: int, rrna_intervals: Dict[str, List[List[
     return False
 
 
-def load_sites(paths: List[str], readinfo: Dict[str, str],
-               leaders: Dict[str, List[dict]], acceptor: str, max_dist: int,
-               rrna_intervals: Optional[Dict[str, List[List[int]]]] = None):
+def load_sites(
+    paths: list[str],
+    readinfo: dict[str, str],
+    leaders: dict[str, list[dict]],
+    acceptor: str,
+    max_dist: int,
+    rrna_intervals: dict[str, list[list[int]]] | None = None,
+):
     """
     Stream every per-library site table, keeping only reads that can be
     attributed to a discovered leader, excluding rRNA/rDNA mapping reads.
@@ -221,12 +239,21 @@ def load_sites(paths: List[str], readinfo: Dict[str, str],
         with open_maybe_gzip(path) as fh:
             header = fh.readline().rstrip("\n").split("\t")
             idx = {name: i for i, name in enumerate(header)}
-            required = ("read_id", "chrom", "junction_pos_1based", "strand",
-                        "tail_seq", "genomic_dinuc", "is_canonical_ag")
+            required = (
+                "read_id",
+                "chrom",
+                "junction_pos_1based",
+                "strand",
+                "tail_seq",
+                "genomic_dinuc",
+                "is_canonical_ag",
+            )
             missing = [c for c in required if c not in idx]
             if missing:
-                print(f"[slidr_consensus] WARNING: {path} is missing {missing}; skipped",
-                      file=sys.stderr)
+                print(
+                    f"[slidr_consensus] WARNING: {path} is missing {missing}; skipped",
+                    file=sys.stderr,
+                )
                 continue
             for line in fh:
                 parts = line.rstrip("\n").split("\t")
@@ -269,27 +296,32 @@ def load_sites(paths: List[str], readinfo: Dict[str, str],
                     continue
                 chrom = parts[idx["chrom"]]
                 strand = parts[idx["strand"]]
-                relevant = [l for l in loci
-                            if passes_leader_distance(pos, chrom, strand, l, max_dist)]
+                relevant = [
+                    l
+                    for l in loci
+                    if passes_leader_distance(pos, chrom, strand, l, max_dist)
+                ]
                 if not relevant:
                     stats["dropped_leader_array"] += 1
                     continue
                 stats["kept"] += 1
-                sites.append({
-                    "read": f"{lib}::{parts[idx['read_id']]}",
-                    "centroid": centroid,
-                    # A centroid may be supported by several leader loci; the
-                    # locus listed first is the best-scoring BLASTN hit.
-                    "leader_key": centroid,
-                    "chrom": chrom,
-                    "pos": pos,
-                    "strand": strand,
-                    "tail": parts[idx["tail_seq"]].upper(),
-                })
+                sites.append(
+                    {
+                        "read": f"{lib}::{parts[idx['read_id']]}",
+                        "centroid": centroid,
+                        # A centroid may be supported by several leader loci; the
+                        # locus listed first is the best-scoring BLASTN hit.
+                        "leader_key": centroid,
+                        "chrom": chrom,
+                        "pos": pos,
+                        "strand": strand,
+                        "tail": parts[idx["tail_seq"]].upper(),
+                    }
+                )
     return sites, stats
 
 
-def cluster_consensus(tails: List[str]) -> Tuple[str, int]:
+def cluster_consensus(tails: list[str]) -> tuple[str, int]:
     """
     Majority-length consensus, ported from the tested implementation.
 
@@ -311,26 +343,54 @@ def cluster_consensus(tails: List[str]) -> Tuple[str, int]:
 def main():
     ap = argparse.ArgumentParser(
         description="Resolve consensus spliced leaders and trans-splice acceptor "
-                    "sites by joining clustered tails to de-novo leader loci.")
-    ap.add_argument("--sites", required=True, nargs="+",
-                    help="Per-library *.acceptor_sites.tsv.gz from SLIDR_EXTRACTTAILS")
-    ap.add_argument("--readinfo", required=True,
-                    help="*_readinfo.tsv.gz (read -> centroid) from SLIDR_CLUSTERTAILS")
-    ap.add_argument("--slrnas", required=True,
-                    help="*.sl_rna_candidates.tsv from SLIDR_SLRNASITES")
-    ap.add_argument("--acceptor", default="AG",
-                    help="Acceptor site pattern, regex (default: AG)")
-    ap.add_argument("--min-support", type=int, default=5,
-                    help="Minimum supporting reads per reported acceptor site (default: 5)")
-    ap.add_argument("--max-leader-gene-distance", type=int, default=1000,
-                    help="Discard sites within this many bp of their own leader RNA "
-                         "gene, i.e. the leader array's own transcripts (default: 1000)")
-    ap.add_argument("--rrna-gff", default=None,
-                    help="GFF file of annotated rRNA/rDNA genes (e.g. from Barrnap) to exclude")
-    ap.add_argument("--rrna-flank", type=int, default=500,
-                    help="Flanking distance (bp) around rRNA features to exclude (default: 500)")
-    ap.add_argument("--rfam-gff", default=None,
-                    help="Optional ncRNA GFF3 (e.g. Infernal cmscan) to cross-reference SL loci")
+        "sites by joining clustered tails to de-novo leader loci."
+    )
+    ap.add_argument(
+        "--sites",
+        required=True,
+        nargs="+",
+        help="Per-library *.acceptor_sites.tsv.gz from SLIDR_EXTRACTTAILS",
+    )
+    ap.add_argument(
+        "--readinfo",
+        required=True,
+        help="*_readinfo.tsv.gz (read -> centroid) from SLIDR_CLUSTERTAILS",
+    )
+    ap.add_argument(
+        "--slrnas", required=True, help="*.sl_rna_candidates.tsv from SLIDR_SLRNASITES"
+    )
+    ap.add_argument(
+        "--acceptor", default="AG", help="Acceptor site pattern, regex (default: AG)"
+    )
+    ap.add_argument(
+        "--min-support",
+        type=int,
+        default=5,
+        help="Minimum supporting reads per reported acceptor site (default: 5)",
+    )
+    ap.add_argument(
+        "--max-leader-gene-distance",
+        type=int,
+        default=1000,
+        help="Discard sites within this many bp of their own leader RNA "
+        "gene, i.e. the leader array's own transcripts (default: 1000)",
+    )
+    ap.add_argument(
+        "--rrna-gff",
+        default=None,
+        help="GFF file of annotated rRNA/rDNA genes (e.g. from Barrnap) to exclude",
+    )
+    ap.add_argument(
+        "--rrna-flank",
+        type=int,
+        default=500,
+        help="Flanking distance (bp) around rRNA features to exclude (default: 500)",
+    )
+    ap.add_argument(
+        "--rfam-gff",
+        default=None,
+        help="Optional ncRNA GFF3 (e.g. Infernal cmscan) to cross-reference SL loci",
+    )
     ap.add_argument("--prefix", default="aps4", help="Output file prefix")
     ap.add_argument("--outdir", default=".", help="Output directory")
     args = ap.parse_args()
@@ -343,29 +403,53 @@ def main():
     rfam_loci = load_rfam_sl_loci(args.rfam_gff)
     if rrna_intervals:
         n_rrna_regions = sum(len(ivs) for ivs in rrna_intervals.values())
-        print(f"[slidr_consensus] Loaded {n_rrna_regions} expanded rRNA/rDNA exclusion zones "
-              f"from {args.rrna_gff} (+/- {args.rrna_flank} bp)", file=sys.stderr)
+        print(
+            f"[slidr_consensus] Loaded {n_rrna_regions} expanded rRNA/rDNA exclusion zones "
+            f"from {args.rrna_gff} (+/- {args.rrna_flank} bp)",
+            file=sys.stderr,
+        )
     if rfam_loci:
-        print(f"[slidr_consensus] Loaded {len(rfam_loci)} Rfam SL loci for orthogonal validation "
-              f"from {args.rfam_gff}", file=sys.stderr)
+        print(
+            f"[slidr_consensus] Loaded {len(rfam_loci)} Rfam SL loci for orthogonal validation "
+            f"from {args.rfam_gff}",
+            file=sys.stderr,
+        )
 
-    print(f"[slidr_consensus] {len(readinfo):,} clustered reads, "
-          f"{len(leaders):,} centroids with a leader RNA locus", file=sys.stderr)
+    print(
+        f"[slidr_consensus] {len(readinfo):,} clustered reads, "
+        f"{len(leaders):,} centroids with a leader RNA locus",
+        file=sys.stderr,
+    )
 
-    sites, stats = load_sites(args.sites, readinfo, leaders, args.acceptor,
-                              args.max_leader_gene_distance, rrna_intervals)
+    sites, stats = load_sites(
+        args.sites,
+        readinfo,
+        leaders,
+        args.acceptor,
+        args.max_leader_gene_distance,
+        rrna_intervals,
+    )
     print("[slidr_consensus] site filtering:", file=sys.stderr)
-    for key in ("rows", "dropped_rrna", "dropped_non_canonical", "dropped_acceptor_mismatch",
-                "dropped_unclustered", "dropped_no_leader", "dropped_leader_array",
-                "kept"):
+    for key in (
+        "rows",
+        "dropped_rrna",
+        "dropped_non_canonical",
+        "dropped_acceptor_mismatch",
+        "dropped_unclustered",
+        "dropped_no_leader",
+        "dropped_leader_array",
+        "kept",
+    ):
         print(f"    {key:<28} {stats[key]:>12,}", file=sys.stderr)
 
     if not sites:
-        print("[slidr_consensus] FATAL: no sites survived filtering. Check that "
-              "SLIDR_ALIGNREADS actually soft-clipped leader sequence: if no "
-              "centroid has a leader RNA locus, the aligner was not configured to "
-              "clip (see modules/sanger-tol/slidr/alignreads/main.nf).",
-              file=sys.stderr)
+        print(
+            "[slidr_consensus] FATAL: no sites survived filtering. Check that "
+            "SLIDR_ALIGNREADS actually soft-clipped leader sequence: if no "
+            "centroid has a leader RNA locus, the aligner was not configured to "
+            "clip (see modules/sanger-tol/slidr/alignreads/main.nf).",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # ---- locus-level pool (no per-centroid threshold) ------------------------
@@ -373,9 +457,14 @@ def main():
     # the per-(centroid, site) --min-support below under-counts real sites. This
     # table pools every leader-attributed read at the genomic site instead, and
     # leaves thresholding to the consumer (SLIDR_TSSEXPORTER).
-    pool = collections.defaultdict(lambda: {"reads": set(), "libs": set(),
-                                            "centroids": set(),
-                                            "tails": collections.Counter()})
+    pool = collections.defaultdict(
+        lambda: {
+            "reads": set(),
+            "libs": set(),
+            "centroids": set(),
+            "tails": collections.Counter(),
+        }
+    )
     for s in sites:
         p = pool[(s["chrom"], s["pos"], s["strand"])]
         p["reads"].add(s["read"])
@@ -384,14 +473,20 @@ def main():
         p["tails"][s["tail"]] += 1
     pool_path = os.path.join(args.outdir, f"{args.prefix}_sl_site_pool.tsv")
     with open(pool_path, "w") as out:
-        out.write("chrom\tpos\tstrand\treads\tn_libraries\tn_centroids\t"
-                  "top_tail\ttop_tail_reads\n")
+        out.write(
+            "chrom\tpos\tstrand\treads\tn_libraries\tn_centroids\t"
+            "top_tail\ttop_tail_reads\n"
+        )
         for (chrom, pos, strand), p in sorted(pool.items()):
             top_tail, top_n = p["tails"].most_common(1)[0]
-            out.write(f"{chrom}\t{pos}\t{strand}\t{len(p['reads'])}\t{len(p['libs'])}\t"
-                      f"{len(p['centroids'])}\t{top_tail}\t{top_n}\n")
-    print(f"[slidr_consensus] {len(pool):,} pooled acceptor loci written to "
-          f"{pool_path}", file=sys.stderr)
+            out.write(
+                f"{chrom}\t{pos}\t{strand}\t{len(p['reads'])}\t{len(p['libs'])}\t"
+                f"{len(p['centroids'])}\t{top_tail}\t{top_n}\n"
+            )
+    print(
+        f"[slidr_consensus] {len(pool):,} pooled acceptor loci written to {pool_path}",
+        file=sys.stderr,
+    )
 
     # ---- aggregate per discovered leader ------------------------------------
     leader_sites = collections.defaultdict(collections.Counter)
@@ -404,8 +499,9 @@ def main():
         leader_reads[key].add(s["read"])
         leader_tails[key].add(s["tail"])
         for locus in leaders[key]:
-            leader_loci[key].add((locus["chrom"], locus["start"], locus["end"],
-                                  locus["strand"]))
+            leader_loci[key].add(
+                (locus["chrom"], locus["start"], locus["end"], locus["strand"])
+            )
 
     reportable = []
     for key, site_counts in leader_sites.items():
@@ -417,19 +513,24 @@ def main():
         if n_reads < args.min_support or len(strong) < 2:
             continue
         consensus, cutoff = cluster_consensus(sorted(leader_tails[key], key=len))
-        reportable.append({
-            "key": key,
-            "consensus": consensus,
-            "cutoff": cutoff,
-            "reads": n_reads,
-            "sites": len(strong),
-            "site_counts": strong,
-            "loci": sorted(leader_loci[key]),
-        })
+        reportable.append(
+            {
+                "key": key,
+                "consensus": consensus,
+                "cutoff": cutoff,
+                "reads": n_reads,
+                "sites": len(strong),
+                "site_counts": strong,
+                "loci": sorted(leader_loci[key]),
+            }
+        )
 
     if not reportable:
-        print("[slidr_consensus] FATAL: no leader passed the support thresholds "
-              f"(>= {args.min_support} reads and >= 2 sites).", file=sys.stderr)
+        print(
+            "[slidr_consensus] FATAL: no leader passed the support thresholds "
+            f"(>= {args.min_support} reads and >= 2 sites).",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # ---- name leaders de novo, most-used first ------------------------------
@@ -449,46 +550,74 @@ def main():
     total_sites = 0
     with open(bed_path, "w") as bed, open(gff_path, "w") as gff:
         gff.write("##gff-version 3\n")
-        gff.write("# trans-splice acceptor sites and spliced-leader RNA genes "
-                  "called de novo by SLIDR\n")
+        gff.write(
+            "# trans-splice acceptor sites and spliced-leader RNA genes "
+            "called de novo by SLIDR\n"
+        )
         for rec in reportable:
             name = rec["name"]
-            rfam_note = f";Rfam_Validation={','.join(rec['rfam_hits'])}" if rec.get("rfam_hits") else ""
+            rfam_note = (
+                f";Rfam_Validation={','.join(rec['rfam_hits'])}"
+                if rec.get("rfam_hits")
+                else ""
+            )
             for (chrom, pos, strand), count in sorted(
-                    rec["site_counts"].items(), key=lambda kv: (kv[0][0], kv[0][1])):
+                rec["site_counts"].items(), key=lambda kv: (kv[0][0], kv[0][1])
+            ):
                 total_sites += 1
                 # BED6: chromStart is 0-based and chromEnd exclusive, so the
                 # junction base at 1-based `pos` becomes [pos-1, pos). The
                 # acceptor dinucleotide itself occupies pos-2..pos-1.
-                bed.write(f"{chrom}\t{pos - 1}\t{pos}\t{name}:{count}\t{count}\t"
-                          f"{strand}\n")
-                gff.write(f"{chrom}\tSLIDR\ttrans_splice_acceptor_site\t{pos}\t{pos}\t"
-                          f"{count}\t{strand}\t.\tID={name}.trans-splice-site-"
-                          f"{total_sites};Name={name};Reads={count}{rfam_note}\n")
+                bed.write(
+                    f"{chrom}\t{pos - 1}\t{pos}\t{name}:{count}\t{count}\t{strand}\n"
+                )
+                gff.write(
+                    f"{chrom}\tSLIDR\ttrans_splice_acceptor_site\t{pos}\t{pos}\t"
+                    f"{count}\t{strand}\t.\tID={name}.trans-splice-site-"
+                    f"{total_sites};Name={name};Reads={count}{rfam_note}\n"
+                )
             for lidx, (chrom, start, end, strand) in enumerate(rec["loci"], 1):
-                gff.write(f"{chrom}\tSLIDR\tspliced_leader_RNA\t{start}\t{end}\t.\t"
-                          f"{strand}\t.\tID={name}.leader-RNA-{lidx};Name={name}{rfam_note}\n")
+                gff.write(
+                    f"{chrom}\tSLIDR\tspliced_leader_RNA\t{start}\t{end}\t.\t"
+                    f"{strand}\t.\tID={name}.leader-RNA-{lidx};Name={name}{rfam_note}\n"
+                )
 
     with open(sum_path, "w") as out:
-        out.write("sl_name\tconsensus\tlength\treads\tacceptor_sites\t"
-                  "leader_RNA_genes\trfam_validation\n")
+        out.write(
+            "sl_name\tconsensus\tlength\treads\tacceptor_sites\t"
+            "leader_RNA_genes\trfam_validation\n"
+        )
         for rec in reportable:
             rfam_val = ",".join(rec.get("rfam_hits", [])) or "None"
-            out.write(f"{rec['name']}\t{rec['consensus']}\t{len(rec['consensus'])}\t"
-                      f"{rec['reads']}\t{rec['sites']}\t{len(rec['loci'])}\t{rfam_val}\n")
+            out.write(
+                f"{rec['name']}\t{rec['consensus']}\t{len(rec['consensus'])}\t"
+                f"{rec['reads']}\t{rec['sites']}\t{len(rec['loci'])}\t{rfam_val}\n"
+            )
 
     with open(fa_path, "w") as out:
         for rec in reportable:
-            out.write(f">{rec['name']} reads={rec['reads']} sites={rec['sites']}\n"
-                      f"{rec['consensus']}\n")
+            out.write(
+                f">{rec['name']} reads={rec['reads']} sites={rec['sites']}\n"
+                f"{rec['consensus']}\n"
+            )
 
-    print(f"[slidr_consensus] {len(reportable)} leaders, {total_sites} acceptor sites "
-          f"with >= {args.min_support} supporting reads", file=sys.stderr)
+    print(
+        f"[slidr_consensus] {len(reportable)} leaders, {total_sites} acceptor sites "
+        f"with >= {args.min_support} supporting reads",
+        file=sys.stderr,
+    )
     for rec in reportable[:10]:
-        rfam_desc = f" [{','.join(rec.get('rfam_hits', []))}]" if rec.get("rfam_hits") else ""
-        print(f"    {rec['name']:<6} reads={rec['reads']:<9} sites={rec['sites']:<7} "
-              f"len={len(rec['consensus']):<4} {rec['consensus']}{rfam_desc}", file=sys.stderr)
-def load_rfam_sl_loci(path: Optional[str]) -> List[dict]:
+        rfam_desc = (
+            f" [{','.join(rec.get('rfam_hits', []))}]" if rec.get("rfam_hits") else ""
+        )
+        print(
+            f"    {rec['name']:<6} reads={rec['reads']:<9} sites={rec['sites']:<7} "
+            f"len={len(rec['consensus']):<4} {rec['consensus']}{rfam_desc}",
+            file=sys.stderr,
+        )
+
+
+def load_rfam_sl_loci(path: str | None) -> list[dict]:
     """
     Load curated/predicted SL loci from Rfam cmscan GFF3 (e.g. RF00198 for SL1, RF00199 for SL2).
     """
@@ -506,23 +635,27 @@ def load_rfam_sl_loci(path: Optional[str]) -> List[dict]:
             if sl_pat.search(parts[8]) or sl_pat.search(parts[2]):
                 try:
                     name_m = re.search(r"Name=([^;]+)", parts[8])
-                    acc_m  = re.search(r"Accession=([^;]+)", parts[8])
+                    acc_m = re.search(r"Accession=([^;]+)", parts[8])
                     model_name = name_m.group(1) if name_m else parts[2]
                     acc = acc_m.group(1) if acc_m else ""
-                    loci.append({
-                        "chrom": parts[0],
-                        "start": int(parts[3]),
-                        "end": int(parts[4]),
-                        "strand": parts[6],
-                        "model": model_name,
-                        "acc": acc
-                    })
+                    loci.append(
+                        {
+                            "chrom": parts[0],
+                            "start": int(parts[3]),
+                            "end": int(parts[4]),
+                            "strand": parts[6],
+                            "model": model_name,
+                            "acc": acc,
+                        }
+                    )
                 except ValueError:
                     continue
     return loci
 
 
-def annotate_with_rfam(reportable: List[dict], rfam_loci: List[dict], max_overlap_dist: int = 200):
+def annotate_with_rfam(
+    reportable: list[dict], rfam_loci: list[dict], max_overlap_dist: int = 200
+):
     """
     Cross-reference discovered leaders against Rfam SL loci.
     """
@@ -531,13 +664,13 @@ def annotate_with_rfam(reportable: List[dict], rfam_loci: List[dict], max_overla
         for l_chrom, l_start, l_end, l_strand in rec["loci"]:
             for r in rfam_loci:
                 if l_chrom == r["chrom"] and l_strand == r["strand"]:
-                    if not (l_end < r["start"] - max_overlap_dist or l_start > r["end"] + max_overlap_dist):
+                    if not (
+                        l_end < r["start"] - max_overlap_dist
+                        or l_start > r["end"] + max_overlap_dist
+                    ):
                         rec["rfam_hits"].append(f"{r['model']}({r['acc']})")
         rec["rfam_hits"] = sorted(set(rec["rfam_hits"]))
 
 
 if __name__ == "__main__":
     main()
-
-
-

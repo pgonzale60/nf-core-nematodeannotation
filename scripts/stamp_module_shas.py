@@ -107,7 +107,7 @@ def stamp_main_nf(mod_dir: pathlib.Path, check_only: bool = False) -> bool:
         # Insert immediately after the opening `"""` of the script block
         triple_quote_match = re.search(r'([ \t]*)"""\n', script_part)
         if not triple_quote_match:
-            raise RuntimeError(f"Could not find opening '\"\"\"' in {main_nf}")
+            raise RuntimeError(f'Could not find opening \'"""\' in {main_nf}')
         indent = triple_quote_match.group(1)
         insert_pos = triple_quote_match.end()
         script_part = (
@@ -147,7 +147,9 @@ def get_staged_module_dirs() -> list[pathlib.Path]:
             continue
         cur = candidate if candidate.is_dir() else candidate.parent
         while cur != matching_root and matching_root in cur.parents:
-            if (cur / "main.nf").is_file() and (cur / "resources" / "usr" / "bin").is_dir():
+            if (cur / "main.nf").is_file() and (
+                cur / "resources" / "usr" / "bin"
+            ).is_dir():
                 if list((cur / "resources" / "usr" / "bin").glob("*.py")):
                     staged_mods.add(cur)
                 break
@@ -166,8 +168,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--all", action="store_true", help="Stamp all Python modules")
-    group.add_argument("--pre-commit", action="store_true", help="Stamp modules with staged changes and git-add main.nf")
-    group.add_argument("--check", action="store_true", help="Check that all Python modules have current Script-SHA stamps")
+    group.add_argument(
+        "--pre-commit",
+        action="store_true",
+        help="Stamp modules with staged changes and git-add main.nf",
+    )
+    group.add_argument(
+        "--check",
+        action="store_true",
+        help="Check that all Python modules have current Script-SHA stamps",
+    )
     args = parser.parse_args()
 
     if args.pre_commit:
@@ -178,17 +188,28 @@ def main() -> int:
         for mod_dir in target_mods:
             if stamp_main_nf(mod_dir, check_only=False):
                 main_nf_rel = (mod_dir / "main.nf").relative_to(REPO_ROOT)
-                subprocess.run(["git", "add", str(main_nf_rel)], cwd=REPO_ROOT, check=True)
+                subprocess.run(
+                    ["git", "add", str(main_nf_rel)], cwd=REPO_ROOT, check=True
+                )
                 stamped.append(_mod_label(mod_dir))
         if stamped:
-            print(f"[pre-commit] Auto-stamped Script-SHA in main.nf for: {', '.join(stamped)}")
+            print(
+                f"[pre-commit] Auto-stamped Script-SHA in main.nf for: {', '.join(stamped)}"
+            )
         return 0
 
     all_mods = discover_python_modules()
     if args.check:
-        stale = [_mod_label(mod_dir) for mod_dir in all_mods if stamp_main_nf(mod_dir, check_only=True)]
+        stale = [
+            _mod_label(mod_dir)
+            for mod_dir in all_mods
+            if stamp_main_nf(mod_dir, check_only=True)
+        ]
         if stale:
-            print(f"Stale or missing Script-SHA in main.nf for: {', '.join(stale)}", file=sys.stderr)
+            print(
+                f"Stale or missing Script-SHA in main.nf for: {', '.join(stale)}",
+                file=sys.stderr,
+            )
             return 1
         print(f"All {len(all_mods)} Python modules have up-to-date Script-SHA stamps.")
         return 0
@@ -198,7 +219,9 @@ def main() -> int:
     for mod_dir in all_mods:
         if stamp_main_nf(mod_dir, check_only=False):
             stamped.append(_mod_label(mod_dir))
-    print(f"Scanned {len(all_mods)} Python modules; updated {len(stamped)}: {', '.join(stamped) if stamped else 'none'}")
+    print(
+        f"Scanned {len(all_mods)} Python modules; updated {len(stamped)}: {', '.join(stamped) if stamped else 'none'}"
+    )
     return 0
 
 

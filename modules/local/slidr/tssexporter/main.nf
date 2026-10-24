@@ -34,7 +34,7 @@ process SLIDR_TSSEXPORTER {
     def min_l    = min_libraries ?: 1
 
     """
-    # Tool: slidr_tss_exporter.py | Script-SHA: fe68134bed185d4c
+    # Tool: slidr_tss_exporter.py | Script-SHA: 69a59fd4483c9370
     slidr_tss_exporter.py \\
         --pool ${pool} \\
         --prefix "${prefix}" \\

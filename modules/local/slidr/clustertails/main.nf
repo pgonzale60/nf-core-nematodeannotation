@@ -51,7 +51,7 @@ process SLIDR_CLUSTERTAILS {
     def minl = min_len ?: 8
 
     """
-    # Tool: slidr_cluster_tails.py | Script-SHA: 5f21be064fa1d26e
+    # Tool: slidr_cluster_tails.py | Script-SHA: 74eb0bd802dbc1e2
     slidr_cluster_tails.py \\
         --tails ${tails} \\
         --min-len ${minl} \\
