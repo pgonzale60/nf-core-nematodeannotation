@@ -24,7 +24,7 @@ process TESCORER {
     def op_arg     = (operons_gff3 && !(operons_gff3.name == 'NO_FILE')) ? "--operons ${operons_gff3}" : ""
     def og_arg     = (orthogroups_tsv && !(orthogroups_tsv.name == 'NO_FILE')) ? "--orthogroups ${orthogroups_tsv}" : ""
     """
-    # Tool: prep_longest_orthofinder.py | Script-SHA: ee56dbe68ae840b7
+    # Tool: prep_longest_orthofinder.py | Script-SHA: 509236611feded61
     python3 ${moduleDir}/resources/usr/bin/te_scorer.py \\
         --gtf "${gtf}" \\
         --fasta "${fasta}" \\

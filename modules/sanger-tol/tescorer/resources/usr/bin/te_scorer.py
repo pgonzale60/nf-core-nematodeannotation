@@ -280,8 +280,13 @@ def main():
                 if len(parts) < 3:
                     continue
                 chrom = parts[0]
-                start = int(parts[1])
-                end = int(parts[2])
+                # Support both BED (chrom, start, end) and GFF3 (chrom, source, type, start, end)
+                if len(parts) >= 5 and parts[3].isdigit() and parts[4].isdigit():
+                    start = int(parts[3])
+                    end = int(parts[4])
+                else:
+                    start = int(parts[1])
+                    end = int(parts[2])
                 satellite_intervals[chrom].append((start, end))
 
     # Evaluate Each Gene Model
