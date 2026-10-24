@@ -1,6 +1,6 @@
 //
 // Subworkflow: REPEAT_MASKING_SATELLITES
-// Implements the Lewis Stevens Centroid Consensus Masking Protocol:
+// Implements De Novo Centroid Consensus Masking:
 // 1. Chunked window harvesting with TRF v4.09 (bounded memory, zero OOM)
 // 2. Filter repeats (period >= 50 bp, copies >= 100, identity >= 85%)
 // 3. Cluster filtered units with VSEARCH at 90% identity to derive family centroids

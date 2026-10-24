@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-filter_trf_satellites.py — Filter TRF output for high-confidence satellite repeats (Lewis Stevens protocol).
+filter_trf_satellites.py — Filter TRF output for high-confidence satellite repeats.
 
 Criteria:
 - Unit length (period size) >= min_period (default: 50 bp)

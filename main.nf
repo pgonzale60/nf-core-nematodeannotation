@@ -5,7 +5,7 @@ nextflow.enable.dsl = 2
 //
 // Complete End-to-End Pipeline:
 // 1. REPEAT_ANNOTATION:
-//    - Lewis Stevens Centroid Consensus Satellite Profiling (TRF + VSEARCH + SATELLITEPROFILER)
+//    - De novo Centroid Consensus Satellite Profiling (TRF + VSEARCH + SATELLITEPROFILER)
 //    - De novo Transposable Element annotation (Earl Grey)
 //    - Emits soft-masked assembly for downstream stages
 // 2. NCRNA_ANNOTATION:
@@ -162,7 +162,7 @@ workflow {
     }
 
     // -----------------------------------------------------------------------
-    // Stage 1: Repeats & Satellites (Lewis Stevens Centroids + Earl Grey)
+    // Stage 1: Repeats & Satellites (Centroid Consensus Satellites + Earl Grey)
     // -----------------------------------------------------------------------
     ch_masked_assembly = ch_assembly
     ch_sat_masked_assembly = ch_assembly

@@ -29,7 +29,7 @@ process SATELLITEFILTER {
     def identity = min_identity ?: 85
 
     """
-    # Tool: filter_trf_satellites.py | Script-SHA: 8005400640804f60
+    # Tool: filter_trf_satellites.py | Script-SHA: 8cac59fe405af914
     python3 ${moduleDir}/resources/usr/bin/filter_trf_satellites.py \\
         --dat ${dat_files} \\
         --min-period ${period} \\
