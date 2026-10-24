@@ -19,7 +19,7 @@ process TRF {
 
     output:
     tuple val(meta), path("*.dat"), emit: dat
-    tuple val("${task.process}"), val('trf'), eval("strings \$(which trf) | grep -E '^4\\.[0-9]+' | head -n 1"), topic: versions, emit: versions_trf
+    tuple val("${task.process}"), val('trf'), eval("strings \$(which trf) | grep -E '^[0-9]+(\\.[0-9]+)+' | head -n 1"), topic: versions, emit: versions_trf
 
     when:
     task.ext.when == null || task.ext.when
