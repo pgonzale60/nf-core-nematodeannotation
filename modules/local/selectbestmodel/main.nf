@@ -28,8 +28,8 @@ process SELECTBESTMODEL {
     def gtf_list   = gtfs instanceof List ? gtfs : [gtfs]
     def aa_list    = aas instanceof List ? aas : [aas]
     def cand_args  = []
-    for (int i = 0; i < label_list.size(); i++) {
-        cand_args.add("--candidate ${label_list[i]} ${gtf_list[i]} ${aa_list[i]}")
+    [label_list, gtf_list, aa_list].transpose().each { l, g, a ->
+        cand_args.add("--candidate ${l} ${g} ${a}")
     }
     def cand_str = cand_args.join(' ')
     """

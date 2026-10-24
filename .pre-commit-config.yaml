@@ -44,6 +44,12 @@ repos:
         args: ["-output", "json"]
   - repo: local
     hooks:
+      - id: stamp-module-shas
+        name: Stamp module Script-SHA in main.nf for cache invalidation
+        entry: python3 scripts/stamp_module_shas.py --pre-commit
+        language: system
+        files: 'modules/.*/resources/usr/(bin|lib)/.*\.py$'
+        pass_filenames: false
       - id: block-pipeline-outdir
         name: Prevent committing output from pipeline test runs to the pipeline code itself
         entry: ./.hooks/block_pipeline_outdir.sh
