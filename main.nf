@@ -93,10 +93,41 @@ params.interproscan_tsv    = params.interproscan_tsv    ?: null
 params.interproscan_gff3   = params.interproscan_gff3   ?: null
 
 workflow {
+    if (params.help) {
+        log.info """
+        ===================================================================
+        nf-core-nematodeannotation: Nematode Genome Annotation Pipeline
+        ===================================================================
+        Usage:
+          nextflow run main.nf --assembly <path/to/assembly.fa> [options]
+
+        Mandatory arguments:
+          --assembly             Path to input FASTA file (.fa, .fasta, .fa.gz, .fasta.gz)
+
+        Input / Output options:
+          --outdir               Path to directory where results are published
+          --fai                  Path to assembly FASTA index (.fai) [optional]
+          --rnaseq_samplesheet   Path to RNA-seq samplesheet CSV [optional]
+          --proteins             Path to OrthoDB/lineage protein FASTA for BRAKER3 [optional]
+          --busco_lineage        BUSCO lineage dataset (default: 'chromadorea_odb12')
+          --interproscan_dir     Path to InterProScan data directory [optional]
+
+        Bypass / Pre-computed options:
+          --braker_gtf           Pre-computed BRAKER GTF
+          --braker_aa            Pre-computed BRAKER proteins
+          --helixer_gff3         Pre-computed Helixer GFF3
+          --interproscan_tsv     Pre-computed InterProScan TSV
+          --satellites_bed       Pre-computed satellites BED
+          --rfam_cm              Rfam covariance models file
+        ===================================================================
+        """.stripIndent()
+        exit 0
+    }
+
     def commit_suffix = workflow.commitId ? workflow.commitId.take(9) : 'dev'
 
     if (!params.assembly) {
-        error "Mandatory parameter --assembly <path/to/assembly.fa> not specified."
+        error "Mandatory parameter --assembly <path/to/assembly.fa> not specified. Run with --help for usage."
     }
 
     ch_assembly_file = file(params.assembly, checkIfExists: true)
