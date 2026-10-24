@@ -39,6 +39,7 @@ include { TESCORER                  } from './modules/sanger-tol/tescorer/main'
 include { SUBREAD_FEATURECOUNTS     } from './modules/nf-core/subread/featurecounts/main'
 include { SAMTOOLS_VIEW as BAM_TO_CRAM } from './modules/nf-core/samtools/view/main'
 include { SAMTOOLS_INDEX as INDEX_CRAM } from './modules/nf-core/samtools/index/main'
+include { softwareVersionsToYAML    } from './subworkflows/nf-core/utils_nfcore_pipeline/main'
 
 // Top-level Parameters
 params.assembly            = params.assembly            ?: null
@@ -399,4 +400,33 @@ workflow {
             ch_counts_input
         )
     }
+
+    // -----------------------------------------------------------------------
+    // Stage 10: Collate & Publish Pipeline Software Versions
+    // -----------------------------------------------------------------------
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
+
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    softwareVersionsToYAML(channel.empty().mix(topic_versions.versions_file))
+        .mix(topic_versions_string)
+        .collectFile(
+            storeDir: "${params.outdir}/pipeline_info",
+            name: 'software_versions.yml',
+            sort: true,
+            newLine: true
+        )
 }
