@@ -1,0 +1,16 @@
+repository_type: pipeline
+
+nf_core_version: 4.1.1.dev0
+
+lint: {}
+
+template:
+  org: nf-core
+  name: nematodeannotation
+  description: Automated dual-evidence and tournament genome annotation pipeline for
+    nematodes
+  author: Tree of Life, Wellcome Sanger Institute
+  version: 1.0.0dev
+  force: true
+  outdir: nf-core-nematodeannotation
+  is_nfcore: true
