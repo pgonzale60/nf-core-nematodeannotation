@@ -19,7 +19,7 @@ process TRF {
 
     output:
     tuple val(meta), path("*.dat"), emit: dat
-    tuple val("${task.process}"), val('trf'), eval("trf 2>&1 | grep -i 'Tandem Repeats Finder' | head -1 | sed -e 's/.*Version //; s/,.*//'"), topic: versions, emit: versions_trf
+    tuple val("${task.process}"), val('trf'), eval("strings \$(which trf) | grep -E '^4\\.[0-9]+' | head -n 1"), topic: versions, emit: versions_trf
 
     when:
     task.ext.when == null || task.ext.when

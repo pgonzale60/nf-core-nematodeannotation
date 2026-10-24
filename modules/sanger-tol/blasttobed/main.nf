@@ -12,7 +12,7 @@ process BLASTTOBED {
 
     output:
     tuple val(meta), path("*.sorted.bed"), emit: bed
-    tuple val("${task.process}"), val('awk'), eval("awk --version | head -1 | sed -e 's/GNU Awk //'"), topic: versions, emit: versions_awk
+    tuple val("${task.process}"), val('awk'), eval("awk 2>&1 | head -n 1 | sed -e 's/.*BusyBox v//; s/ .*//; s/GNU Awk //'"), topic: versions, emit: versions_awk
 
     when:
     task.ext.when == null || task.ext.when
