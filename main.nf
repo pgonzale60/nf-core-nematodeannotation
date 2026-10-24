@@ -471,7 +471,7 @@ workflow {
     // -----------------------------------------------------------------------
     // Stage 10: Collate & Publish Pipeline Software Versions
     // -----------------------------------------------------------------------
-    def topic_versions = channel.topic("versions")
+    def topic_versions = Channel.topic("versions")
         .distinct()
         .branch { entry ->
             versions_file: entry instanceof Path
