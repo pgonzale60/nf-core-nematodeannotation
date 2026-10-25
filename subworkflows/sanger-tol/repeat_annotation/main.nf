@@ -31,7 +31,8 @@ workflow REPEAT_ANNOTATION {
     val_min_identity       // int: min identity (default: 85)
     val_rhabditida_clade   // string: Earl Grey clade (default: 'rhabditida')
     val_skip_te            // boolean: skip Earl Grey (default: false)
-    val_earlgrey_dir       // string/path: optional precomputed Earl Grey directory (default: null)
+    val_earlgrey_dir       // string/path: optional precomputed Earl Grey completed deliverables directory (bypasses Earl Grey)
+    val_earlgrey_seed_dir  // string/path: optional Earl Grey seed directory to resume internally (runs Earl Grey with -e)
     ch_structural_mask_bed // channel: optional [ val(meta), path(bed) ] of structural RNA tandem arrays to hard-mask prior to Earl Grey
 
     main:

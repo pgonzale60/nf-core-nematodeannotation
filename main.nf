@@ -243,7 +243,6 @@ workflow {
     ch_sat_masked_assembly = ch_assembly
 
     if (!params.skip_repeats) {
-        def effective_eg_dir = params.earlgrey_seed_dir ?: params.earlgrey_dir
         REPEAT_ANNOTATION(
             ch_assembly,
             ch_fai,
@@ -253,7 +252,8 @@ workflow {
             params.min_identity,
             params.clade,
             params.skip_te,
-            effective_eg_dir,
+            params.earlgrey_dir,
+            params.earlgrey_seed_dir,
             ch_structural_mask_bed
         )
         ch_masked_assembly     = REPEAT_ANNOTATION.out.masked_fasta
