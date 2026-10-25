@@ -30,6 +30,7 @@ include { GUNZIP                    } from './modules/nf-core/gunzip/main'
 include { SAMTOOLS_FAIDX            } from './modules/nf-core/samtools/faidx/main'
 include { REPEAT_ANNOTATION         } from './subworkflows/sanger-tol/repeat_annotation/main'
 include { NCRNA_ANNOTATION          } from './subworkflows/sanger-tol/ncrna_annotation/main'
+include { NCRNA_TANDEM_FILTER       } from './modules/local/ncrna_tandem_filter/main'
 include { RNASEQ_ALIGN              } from './subworkflows/sanger-tol/rnaseq_align/main'
 include { SPLICED_LEADER_DISCOVERY  } from './subworkflows/sanger-tol/spliced_leader_discovery/main'
 include { GENE_PREDICTION           } from './subworkflows/sanger-tol/gene_prediction/main'
@@ -301,7 +302,33 @@ workflow {
     }
 
     // -----------------------------------------------------------------------
-    // Stage 1: Repeats & Satellites (Centroid Consensus Satellites + Earl Grey)
+    // Stage 1: ncRNA Structural Annotation (Infernal cmscan)
+    // Runs upfront to provide high-density tandem structural RNA masks (rDNA, 5S, snRNA arrays)
+    // that shield Earl Grey / RepeatModeler from massive tandem unit explosions.
+    // -----------------------------------------------------------------------
+    ch_ncrna_gff = channel.empty()
+    ch_structural_mask_bed = channel.empty()
+
+    if (params.ncrna_gff) {
+        ch_ncrna_gff = channel.value(file(params.ncrna_gff, checkIfExists: true))
+    } else if (!params.skip_ncrna && params.rfam_cm) {
+        ch_cmfile = file(params.rfam_cm, checkIfExists: true)
+        NCRNA_ANNOTATION(
+            ch_assembly,
+            ch_cmfile
+        )
+        ch_ncrna_gff = NCRNA_ANNOTATION.out.gff3.map { _meta, gff -> gff }
+    }
+
+    if (!params.skip_ncrna || params.ncrna_gff) {
+        NCRNA_TANDEM_FILTER(
+            ch_ncrna_gff.map { gff -> [ ch_assembly_meta, gff ] }
+        )
+        ch_structural_mask_bed = NCRNA_TANDEM_FILTER.out.bed
+    }
+
+    // -----------------------------------------------------------------------
+    // Stage 2: Repeats & Satellites (Centroid Consensus Satellites + Earl Grey)
     // -----------------------------------------------------------------------
     ch_masked_assembly = ch_assembly
     ch_sat_masked_assembly = ch_assembly
@@ -317,26 +344,11 @@ workflow {
             params.min_identity,
             params.clade,
             params.skip_te,
-            effective_eg_dir
+            effective_eg_dir,
+            ch_structural_mask_bed
         )
         ch_masked_assembly     = REPEAT_ANNOTATION.out.masked_fasta
         ch_sat_masked_assembly = REPEAT_ANNOTATION.out.sat_masked_fasta
-    }
-
-    // -----------------------------------------------------------------------
-    // Stage 2: ncRNA Structural Annotation (Infernal cmscan)
-    // -----------------------------------------------------------------------
-    ch_ncrna_gff = channel.empty()
-
-    if (params.ncrna_gff) {
-        ch_ncrna_gff = channel.value(file(params.ncrna_gff, checkIfExists: true))
-    } else if (!params.skip_ncrna && params.rfam_cm) {
-        ch_cmfile = file(params.rfam_cm, checkIfExists: true)
-        NCRNA_ANNOTATION(
-            ch_assembly,
-            ch_cmfile
-        )
-        ch_ncrna_gff = NCRNA_ANNOTATION.out.gff3.map { _meta, gff -> gff }
     }
 
     // -----------------------------------------------------------------------

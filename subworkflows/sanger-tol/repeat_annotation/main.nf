@@ -19,6 +19,7 @@
 include { REPEAT_MASKING_SATELLITES } from '../repeat_masking_satellites/main'
 include { EARLGREY                  } from '../../../modules/sanger-tol/earlgrey/main'
 include { BEDTOOLS_MASKFASTA as BEDTOOLS_MASK_TE } from '../../../modules/nf-core/bedtools/maskfasta/main'
+include { BEDTOOLS_MASKFASTA as BEDTOOLS_MASK_STRUCTURAL } from '../../../modules/nf-core/bedtools/maskfasta/main'
 
 workflow REPEAT_ANNOTATION {
     take:
@@ -31,6 +32,7 @@ workflow REPEAT_ANNOTATION {
     val_rhabditida_clade   // string: Earl Grey clade (default: 'rhabditida')
     val_skip_te            // boolean: skip Earl Grey (default: false)
     val_earlgrey_dir       // string/path: optional precomputed Earl Grey directory (default: null)
+    ch_structural_mask_bed // channel: optional [ val(meta), path(bed) ] of structural RNA tandem arrays to hard-mask prior to Earl Grey
 
     main:
     ch_versions = channel.empty()
@@ -48,6 +50,18 @@ workflow REPEAT_ANNOTATION {
 
     ch_sat_masked_fasta      = REPEAT_MASKING_SATELLITES.out.masked_fasta
     ch_sat_hard_masked_fasta = REPEAT_MASKING_SATELLITES.out.hard_masked_fasta
+
+    // 1b. Hard-mask structural RNA tandem arrays (rDNA, 5S, snRNA arrays) onto sat_hard_masked_fasta
+    // to shield Earl Grey / RepeatModeler from massive tandem consensus explosions.
+    ch_earlgrey_input_fasta = ch_sat_hard_masked_fasta
+    if (ch_structural_mask_bed) {
+        BEDTOOLS_MASK_STRUCTURAL(
+            ch_structural_mask_bed,
+            ch_sat_hard_masked_fasta.map { _meta, fa -> fa }
+        )
+        ch_versions             = ch_versions.mix(BEDTOOLS_MASK_STRUCTURAL.out.versions_bedtools)
+        ch_earlgrey_input_fasta = BEDTOOLS_MASK_STRUCTURAL.out.fasta
+    }
     ch_sat_bed               = REPEAT_MASKING_SATELLITES.out.satellite_bed
     ch_centroids             = REPEAT_MASKING_SATELLITES.out.centroids
     ch_arrays_gff3           = REPEAT_MASKING_SATELLITES.out.arrays_gff3
@@ -84,7 +98,7 @@ workflow REPEAT_ANNOTATION {
 
     } else if (!val_skip_te) {
         EARLGREY(
-            ch_sat_hard_masked_fasta,
+            ch_earlgrey_input_fasta,
             val_rhabditida_clade
         )
         ch_versions = ch_versions.mix(EARLGREY.out.versions_earlgrey)
