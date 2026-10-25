@@ -50,6 +50,12 @@ repos:
         args: ["-output", "json"]
   - repo: local
     hooks:
+      - id: check-no-time-directives
+        name: Enforce that Nextflow configs never specify 'time' directives
+        entry: python3 scripts/check_no_time_directives.py
+        language: system
+        files: '(\.config)$'
+        pass_filenames: false
       - id: stamp-module-shas
         name: Stamp module Script-SHA in main.nf for cache invalidation
         entry: python3 scripts/stamp_module_shas.py --pre-commit
