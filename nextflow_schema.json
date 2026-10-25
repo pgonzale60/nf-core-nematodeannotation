@@ -115,6 +115,13 @@
                     "type": "string",
                     "format": "directory-path",
                     "description": "Alternative alias for pre-computed Earl Grey repeat run directory."
+                },
+                "structural_mask_bed": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed BED file containing structural RNA tandem arrays to hard-mask prior to Earl Grey (bypasses ncRNA tandem filtering when resuming with --earlgrey_seed_dir).",
+                    "fa_icon": "fas fa-shield-alt"
                 }
             }
         },

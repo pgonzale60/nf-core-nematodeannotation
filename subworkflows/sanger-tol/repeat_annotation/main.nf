@@ -52,8 +52,10 @@ workflow REPEAT_ANNOTATION {
 
     // 1b. Hard-mask structural RNA tandem arrays (rDNA, 5S, snRNA arrays) onto sat_hard_masked_fasta
     // to shield Earl Grey / RepeatModeler from massive tandem consensus explosions.
+    // If an existing Earl Grey seed directory is provided, we bypass re-masking with BEDTOOLS_MASK_STRUCTURAL
+    // because the seed directory was already executed on the upstream masked assembly.
     ch_earlgrey_input_fasta = ch_sat_hard_masked_fasta
-    if (ch_structural_mask_bed) {
+    if (!val_earlgrey_seed_dir && ch_structural_mask_bed) {
         BEDTOOLS_MASK_STRUCTURAL(
             ch_structural_mask_bed,
             ch_sat_hard_masked_fasta.map { _meta, fa -> fa }

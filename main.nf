@@ -66,6 +66,7 @@ params.skip_repeats        = params.skip_repeats        ?: false
 params.skip_te             = params.skip_te             ?: false
 params.earlgrey_dir        = params.earlgrey_dir        ?: null
 params.earlgrey_seed_dir   = params.earlgrey_seed_dir   ?: null
+params.structural_mask_bed = params.structural_mask_bed ?: null
 
 // ncRNA parameters
 params.rfam_cm             = params.rfam_cm             ?: null
@@ -131,7 +132,7 @@ workflow {
 
     // 2. ncRNA & Rfam Model Indices Verification
     if (!params.skip_ncrna) {
-        if (!params.rfam_cm && !params.ncrna_gff) {
+        if (!params.rfam_cm && !params.ncrna_gff && !params.structural_mask_bed && !params.earlgrey_seed_dir && !params.earlgrey_dir) {
             validation_errors.add("ncRNA annotation is active, but neither --rfam_cm nor --ncrna_gff was provided.")
         } else if (params.rfam_cm) {
             def cm = file(params.rfam_cm)
@@ -218,6 +219,11 @@ workflow {
     ch_ncrna_gff = channel.empty()
     ch_structural_mask_bed = channel.empty()
 
+    if (params.structural_mask_bed) {
+        // Direct precomputed structural RNA tandem mask bypass
+        ch_structural_mask_bed = channel.value([ ch_assembly_meta, file(params.structural_mask_bed, checkIfExists: true) ])
+    }
+
     if (params.ncrna_gff) {
         ch_ncrna_gff = channel.value(file(params.ncrna_gff, checkIfExists: true))
     } else if (!params.skip_ncrna && params.rfam_cm) {
@@ -229,7 +235,7 @@ workflow {
         ch_ncrna_gff = NCRNA_ANNOTATION.out.gff3.map { _meta, gff -> gff }
     }
 
-    if (!params.skip_ncrna || params.ncrna_gff) {
+    if (!params.structural_mask_bed && (!params.skip_ncrna || params.ncrna_gff)) {
         NCRNA_TANDEM_FILTER(
             ch_ncrna_gff.map { gff -> [ ch_assembly_meta, gff ] }
         )
