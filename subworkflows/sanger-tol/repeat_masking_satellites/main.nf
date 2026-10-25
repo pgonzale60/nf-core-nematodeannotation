@@ -125,7 +125,9 @@ workflow REPEAT_MASKING_SATELLITES {
 
     // 10. Merge adjacent intervals into a non-overlapping satellite mask
     // Restore base assembly metadata so downstream processes retain assembly prefix
-    ch_merged_sat_input = BLASTTOBED.out.bed.map { _meta, bed -> [ ch_fai_meta, bed ] }
+    ch_merged_sat_input = BLASTTOBED.out.bed
+        .combine(ch_fasta.map { meta, _fa -> meta })
+        .map { _bed_meta, bed, asm_meta -> [ asm_meta, bed ] }
     BEDTOOLS_MERGE_SATELLITES(
         ch_merged_sat_input
     )
