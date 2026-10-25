@@ -80,10 +80,9 @@ process EARLGREY {
 
     # Seed from prior run directory if configured (allows in-workflow resumption)
     if [ -n "${params.earlgrey_seed_dir ?: ''}" ] && [ -d "${params.earlgrey_seed_dir}" ]; then
-        echo "Seeding EarlGrey working directory from: ${params.earlgrey_seed_dir}"
-        target_dir="\$(basename "${params.earlgrey_seed_dir}")"
-        if [ ! -d "\${target_dir}" ]; then
-            cp -al "${params.earlgrey_seed_dir}" ./
+        echo "Seeding EarlGrey working directory from: ${params.earlgrey_seed_dir} to ./${prefix}_EarlGrey"
+        if [ ! -d "${prefix}_EarlGrey" ]; then
+            cp -al "${params.earlgrey_seed_dir}" "./${prefix}_EarlGrey"
         fi
     fi
 
