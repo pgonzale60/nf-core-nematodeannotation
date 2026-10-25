@@ -9,225 +9,349 @@
             "title": "Input/output options",
             "type": "object",
             "fa_icon": "fas fa-terminal",
-            "description": "Define where the pipeline should find input data and save output data.",
-            "required": ["input", "outdir"],
+            "description": "Core inputs and outputs for the annotation pipeline.",
+            "required": [
+                "assembly",
+                "outdir"
+            ],
             "properties": {
-                "input": {
+                "assembly": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "mimetype": "text/plain",
+                    "pattern": "^\\S+\\.(fa|fasta|fna|fa\\.gz|fasta\\.gz|fna\\.gz|fa\\.bgz)$",
+                    "description": "Path to input genome assembly FASTA (.fa, .fasta, .fna, optionally gzip compressed).",
+                    "help_text": "Mandatory genome assembly file. Compressed assemblies (.gz, .bgz) are uncompressed on-the-fly.",
+                    "fa_icon": "fas fa-dna"
+                },
+                "fai": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "pattern": "^\\S+\\.fai$",
+                    "description": "Path to assembly FASTA index (.fai). If omitted, generated automatically with samtools faidx.",
+                    "fa_icon": "far fa-file-code"
+                },
+                "rnaseq_samplesheet": {
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
                     "schema": "assets/schema_input.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
-                    "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row. See [usage docs](https://nf-co.re/nematodeannotation/usage#samplesheet-input).",
+                    "description": "Path to CSV samplesheet specifying RNA-seq datasets (CRAMs, FASTQs, or pre-aligned BAMs).",
+                    "help_text": "CSV samplesheet with columns: sample, cram, crai, fastq_1, fastq_2, bam, bai.",
                     "fa_icon": "fas fa-file-csv"
+                },
+                "bam": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "pattern": "^\\S+\\.bam$",
+                    "description": "Pre-computed coordinate-sorted RNA-seq BAM file.",
+                    "fa_icon": "fas fa-file"
+                },
+                "bams": {
+                    "type": "string",
+                    "description": "Comma-separated list or glob of BAM files.",
+                    "fa_icon": "fas fa-file"
                 },
                 "outdir": {
                     "type": "string",
                     "format": "directory-path",
-                    "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
+                    "description": "Path to output directory where results will be published.",
                     "fa_icon": "fas fa-folder-open"
-                },
-                "email": {
-                    "type": "string",
-                    "description": "Email address for completion summary.",
-                    "fa_icon": "fas fa-envelope",
-                    "help_text": "Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits. If set in your user config file (`~/.nextflow/config`) then you don't need to specify this on the command line for every run.",
-                    "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"
-                },
-                "multiqc_title": {
-                    "type": "string",
-                    "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
-                    "fa_icon": "fas fa-file-signature"
                 }
             }
         },
-        "reference_genome_options": {
-            "title": "Reference genome options",
+        "repeats_and_satellites": {
+            "title": "Repeats and Satellites options",
             "type": "object",
-            "fa_icon": "fas fa-dna",
-            "description": "Reference genome related files and options required for the workflow.",
+            "fa_icon": "fas fa-repeat",
+            "description": "Parameters governing tandem satellite repeat discovery and Earl Grey transposable element annotation.",
             "properties": {
-                "genome": {
-                    "type": "string",
-                    "description": "Name of iGenomes reference.",
-                    "fa_icon": "fas fa-book",
-                    "help_text": "If using a reference genome configured in the pipeline using iGenomes, use this parameter to give the ID for the reference. This is then used to build the full paths for all required reference genome files e.g. `--genome GRCh38`. \n\nSee the [nf-core website docs](https://nf-co.re/usage/reference_genomes) for more details."
+                "window_size": {
+                    "type": "integer",
+                    "default": 500000,
+                    "description": "Window size for splitting chromosomes during satellite scanning (bp)."
                 },
-                "fasta": {
+                "min_period": {
+                    "type": "integer",
+                    "default": 50,
+                    "description": "Minimum repeat period size (bp) for satellite discovery."
+                },
+                "min_copies": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "Minimum tandem copy count required to qualify as satellite array."
+                },
+                "min_identity": {
+                    "type": "integer",
+                    "default": 85,
+                    "description": "Minimum sequence identity percentage for tandem repeat unit consistency."
+                },
+                "clade": {
+                    "type": "string",
+                    "default": "rhabditida",
+                    "description": "Taxonomic clade for RepeatModeler/RepeatMasker/Dfam searches."
+                },
+                "dfam_dir": {
+                    "type": "string",
+                    "default": "/data/tol/resources/dfam/3.9/families/FamDB",
+                    "description": "Path to Dfam FamDB directory."
+                },
+                "dfam_h5": {
+                    "type": "string",
+                    "default": "/lustre/scratch122/tol/teams/blaxter/users/pg17/pde_workbench/data/rm_bypass/Dfam.h5",
+                    "description": "Path to Dfam.h5 file."
+                },
+                "earlgrey_dir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "Pre-computed Earl Grey repeat run directory for bypassing TE discovery."
+                },
+                "earlgrey_seed_dir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "Alternative alias for pre-computed Earl Grey repeat run directory."
+                }
+            }
+        },
+        "ncrna_annotation": {
+            "title": "ncRNA Annotation options",
+            "type": "object",
+            "fa_icon": "fas fa-project-diagram",
+            "description": "Parameters for structural RNA annotation via Infernal cmscan.",
+            "properties": {
+                "rfam_cm": {
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "mimetype": "text/plain",
-                    "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$",
-                    "description": "Path to FASTA genome file.",
-                    "help_text": "This parameter is *mandatory* if `--genome` is not specified. If you don't have a BWA index available this will be generated for you automatically. Combine with `--save_reference` to save BWA index for future runs.",
-                    "fa_icon": "far fa-file-code"
+                    "description": "Path to Rfam covariance models (Rfam.cm) with binary indices (.i1f, .i1i, .i1m, .i1p).",
+                    "fa_icon": "fas fa-database"
                 },
-                "igenomes_ignore": {
-                    "type": "boolean",
-                    "description": "Do not load the iGenomes reference config.",
-                    "fa_icon": "fas fa-ban",
-                    "hidden": true,
-                    "help_text": "Do not load `igenomes.config` when running the pipeline. You may choose this option if you observe clashes between custom parameters and those supplied in `igenomes.config`."
-                },
-                "igenomes_base": {
+                "ncrna_gff": {
                     "type": "string",
-                    "description": "The base path to the igenomes reference files",
-                    "fa_icon": "fas fa-ban",
-                    "hidden": true,
-                    "default": "s3://ngi-igenomes/igenomes/"
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed ncRNA GFF3 file (bypasses Infernal cmscan).",
+                    "fa_icon": "fas fa-file-code"
                 }
             }
         },
-        "institutional_config_options": {
-            "title": "Institutional config options",
+        "spliced_leader_discovery": {
+            "title": "Spliced Leader and Operon options",
             "type": "object",
-            "fa_icon": "fas fa-university",
-            "description": "Parameters used to describe centralised config profiles. These should not be edited.",
-            "help_text": "The centralised nf-core configuration profiles use a handful of pipeline parameters to describe themselves. This information is then printed to the Nextflow log when you run a pipeline. You should not need to change these values when you run a pipeline.",
+            "fa_icon": "fas fa-scissors",
+            "description": "Parameters for SLIDR trans-splicing spliced leader discovery and operon demarcation.",
             "properties": {
-                "custom_config_version": {
-                    "type": "string",
-                    "description": "Git commit id for Institutional configs.",
-                    "default": "master",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
+                "min_support": {
+                    "type": "integer",
+                    "default": 5,
+                    "description": "Minimum soft-clipped read support for SL acceptor site identification."
                 },
-                "custom_config_base": {
-                    "type": "string",
-                    "description": "Base directory for Institutional configs.",
-                    "default": "https://raw.githubusercontent.com/nf-core/configs/master",
-                    "hidden": true,
-                    "help_text": "If you're running offline, Nextflow will not be able to fetch the institutional config files from the internet. If you don't need them, then this is not a problem. If you do need them, you should download the files from the repo and tell Nextflow where to find them with this parameter.",
-                    "fa_icon": "fas fa-users-cog"
+                "max_dist": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "Maximum distance between SL site and annotated start codon."
                 },
-                "config_profile_name": {
-                    "type": "string",
-                    "description": "Institutional config name.",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
+                "min_tail_len": {
+                    "type": "integer",
+                    "default": 8,
+                    "description": "Minimum clipped leader tail length in reads."
                 },
-                "config_profile_description": {
-                    "type": "string",
-                    "description": "Institutional config description.",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
+                "strandedness": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Strandedness of RNA-seq data (0: unstranded, 1: forward, 2: reverse)."
                 },
-                "config_profile_contact": {
-                    "type": "string",
-                    "description": "Institutional config contact information.",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
+                "slidr_scale": {
+                    "type": "number",
+                    "default": 1.0,
+                    "description": "Scaling factor for SLIDR tail extraction scoring."
                 },
-                "config_profile_url": {
+                "acceptor": {
                     "type": "string",
-                    "description": "Institutional config URL link.",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
+                    "default": "AG",
+                    "description": "Splice acceptor dinucleotide motif."
+                },
+                "max_leader_gene_distance": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "Maximum distance between SL site and gene model for operon assignment."
+                }
+            }
+        },
+        "gene_prediction_options": {
+            "title": "Gene Prediction options",
+            "type": "object",
+            "fa_icon": "fas fa-microscope",
+            "description": "Parameters for BRAKER3, Helixer, TSEBRA model reconciliation, and BUSCO QC.",
+            "properties": {
+                "proteins": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Path to reference/OrthoDB protein FASTA for BRAKER3 homology hints.",
+                    "fa_icon": "fas fa-file"
+                },
+                "helixer_lineage": {
+                    "type": "string",
+                    "default": "invertebrate",
+                    "description": "Helixer neural network lineage model ('invertebrate', 'fungi', 'vertebrate', 'land_plant')."
+                },
+                "busco_lineage": {
+                    "type": "string",
+                    "default": "chromadorea_odb12",
+                    "description": "BUSCO lineage dataset for protein completeness assessment."
+                },
+                "busco_lineages_path": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true,
+                    "description": "Local path to offline BUSCO lineages dataset directory.",
+                    "fa_icon": "fas fa-folder"
+                }
+            }
+        },
+        "functional_annotation_and_scoring": {
+            "title": "Functional Annotation and TE Scoring options",
+            "type": "object",
+            "fa_icon": "fas fa-tags",
+            "description": "Parameters for InterProScan domain annotation, orthology, and TE-derived gene model penalization.",
+            "properties": {
+                "interproscan_dir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true,
+                    "description": "Path to local InterProScan data directory containing data/ and bin/."
+                },
+                "orthogroups_tsv": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Path to OrthoFinder Orthogroups.tsv matrix."
+                },
+                "satellites_bed": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed satellite annotations BED."
+                }
+            }
+        },
+        "bypass_and_precomputed_options": {
+            "title": "Bypass and Pre-computed Model options",
+            "type": "object",
+            "fa_icon": "fas fa-forward",
+            "description": "Options to supply pre-computed outputs to bypass heavy compute stages.",
+            "properties": {
+                "representative_gtf": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed winning gene models GTF (bypasses BRAKER/Helixer/TSEBRA tournament)."
+                },
+                "representative_faa": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed winning proteins FASTA."
+                },
+                "braker_gtf": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed BRAKER GTF."
+                },
+                "braker_aa": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed BRAKER protein FASTA."
+                },
+                "braker_hints": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed BRAKER hints file."
+                },
+                "helixer_gff3": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed Helixer GFF3."
+                },
+                "helixer_gtf": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed Helixer GTF."
+                },
+                "interproscan_tsv": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed InterProScan TSV output."
+                },
+                "interproscan_gff3": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Pre-computed InterProScan GFF3 output."
+                }
+            }
+        },
+        "pipeline_skips": {
+            "title": "Pipeline Stage Skips",
+            "type": "object",
+            "fa_icon": "fas fa-step-forward",
+            "description": "Flags to skip specific pipeline execution stages.",
+            "properties": {
+                "skip_repeats": {
+                    "type": "boolean",
+                    "description": "Skip repeat and satellite annotation (Centroids + Earl Grey)."
+                },
+                "skip_te": {
+                    "type": "boolean",
+                    "description": "Skip Earl Grey TE discovery."
+                },
+                "skip_ncrna": {
+                    "type": "boolean",
+                    "description": "Skip ncRNA structural annotation via Infernal cmscan."
+                },
+                "skip_rnaseq": {
+                    "type": "boolean",
+                    "description": "Skip RNA-seq alignment and CRAM conversion."
+                },
+                "skip_sl_discovery": {
+                    "type": "boolean",
+                    "description": "Skip spliced leader discovery."
+                },
+                "skip_gene_prediction": {
+                    "type": "boolean",
+                    "description": "Skip BRAKER3 and Helixer gene prediction."
+                },
+                "skip_functional_annotation": {
+                    "type": "boolean",
+                    "description": "Skip InterProScan functional domain annotation."
+                },
+                "skip_te_scoring": {
+                    "type": "boolean",
+                    "description": "Skip TE-derived model penalization scoring."
                 }
             }
         },
         "generic_options": {
             "title": "Generic options",
             "type": "object",
-            "fa_icon": "fas fa-file-import",
-            "description": "Less common options for the pipeline, typically set in a config file.",
-            "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
+            "fa_icon": "fas fa-file-alt",
+            "description": "Standard pipeline execution controls.",
             "properties": {
-                "version": {
-                    "type": "boolean",
-                    "description": "Display version and exit.",
-                    "fa_icon": "fas fa-question-circle",
-                    "hidden": true
-                },
-                "publish_dir_mode": {
-                    "type": "string",
-                    "default": "copy",
-                    "description": "Method used to save pipeline results to output directory.",
-                    "help_text": "The Nextflow `publishDir` option specifies which intermediate files should be saved to the output directory. This option tells the pipeline what method should be used to move these files. See [Nextflow docs](https://www.nextflow.io/docs/latest/process.html#publishdir) for details.",
-                    "fa_icon": "fas fa-copy",
-                    "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"],
-                    "hidden": true
-                },
-                "email_on_fail": {
-                    "type": "string",
-                    "description": "Email address for completion summary, only when pipeline fails.",
-                    "fa_icon": "fas fa-exclamation-triangle",
-                    "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$",
-                    "help_text": "An email address to send a summary email to when the pipeline is completed - ONLY sent if the pipeline does not exit successfully.",
-                    "hidden": true
-                },
-                "plaintext_email": {
-                    "type": "boolean",
-                    "description": "Send plain-text email instead of HTML.",
-                    "fa_icon": "fas fa-remove-format",
-                    "hidden": true
-                },
-                "max_multiqc_email_size": {
-                    "type": "string",
-                    "description": "File size limit when attaching MultiQC reports to summary emails.",
-                    "pattern": "^\\d+(\\.\\d+)?\\.?\\s*(K|M|G|T)?B$",
-                    "default": "25.MB",
-                    "fa_icon": "fas fa-file-upload",
-                    "hidden": true
-                },
-                "monochrome_logs": {
-                    "type": "boolean",
-                    "description": "Do not use coloured log outputs.",
-                    "fa_icon": "fas fa-palette",
-                    "hidden": true
-                },
-                "multiqc_config": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Custom config file to supply to MultiQC.",
-                    "fa_icon": "fas fa-cog",
-                    "hidden": true
-                },
-                "multiqc_logo": {
-                    "type": "string",
-                    "description": "Custom logo file to supply to MultiQC. File name must also be set in the MultiQC config file",
-                    "fa_icon": "fas fa-image",
-                    "hidden": true
-                },
-                "multiqc_methods_description": {
-                    "type": "string",
-                    "description": "Custom MultiQC yaml file containing HTML including a methods description.",
-                    "fa_icon": "fas fa-cog"
-                },
-                "validate_params": {
-                    "type": "boolean",
-                    "description": "Boolean whether to validate parameters against the schema at runtime",
-                    "default": true,
-                    "fa_icon": "fas fa-check-square",
-                    "hidden": true
-                },
-                "pipelines_testdata_base_path": {
-                    "type": "string",
-                    "fa_icon": "far fa-check-circle",
-                    "description": "Base URL or local path to location of pipeline test dataset files",
-                    "default": "https://raw.githubusercontent.com/nf-core/test-datasets/",
-                    "hidden": true
-                },
-                "trace_report_suffix": {
-                    "type": "string",
-                    "fa_icon": "far calendar",
-                    "description": "Suffix to add to the trace report filename. Default is the date and time in the format yyyy-MM-dd_HH-mm-ss.",
-                    "hidden": true
-                },
                 "help": {
-                    "type": ["boolean", "string"],
-                    "description": "Display the help message."
-                },
-                "help_full": {
                     "type": "boolean",
-                    "description": "Display the full detailed help message."
-                },
-                "show_hidden": {
-                    "type": "boolean",
-                    "description": "Display hidden parameters in the help message (only works when --help or --help_full are provided)."
+                    "description": "Display help message and exit."
                 }
             }
         }
@@ -237,10 +361,25 @@
             "$ref": "#/$defs/input_output_options"
         },
         {
-            "$ref": "#/$defs/reference_genome_options"
+            "$ref": "#/$defs/repeats_and_satellites"
         },
         {
-            "$ref": "#/$defs/institutional_config_options"
+            "$ref": "#/$defs/ncrna_annotation"
+        },
+        {
+            "$ref": "#/$defs/spliced_leader_discovery"
+        },
+        {
+            "$ref": "#/$defs/gene_prediction_options"
+        },
+        {
+            "$ref": "#/$defs/functional_annotation_and_scoring"
+        },
+        {
+            "$ref": "#/$defs/bypass_and_precomputed_options"
+        },
+        {
+            "$ref": "#/$defs/pipeline_skips"
         },
         {
             "$ref": "#/$defs/generic_options"

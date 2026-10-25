@@ -178,6 +178,55 @@ workflow {
         def has_bam = (params.bam && file(params.bam).exists()) || (params.bams)
         if (!has_samplesheet && !has_bam) {
             validation_errors.add("RNA-seq alignment is active, but neither a valid --rnaseq_samplesheet nor pre-computed --bam/--bams was provided.")
+        } else if (has_samplesheet) {
+            // Verify existence and readability of all file paths referenced inside the samplesheet
+            def ss_file = file(params.rnaseq_samplesheet)
+            if (ss_file.isEmpty()) {
+                validation_errors.add("Provided --rnaseq_samplesheet is empty: ${params.rnaseq_samplesheet}")
+            } else {
+                def lines = ss_file.readLines()
+                if (lines.size() < 2) {
+                    validation_errors.add("Provided --rnaseq_samplesheet has no sample rows: ${params.rnaseq_samplesheet}")
+                } else {
+                    def header = lines[0].tokenize(',').collect { it.trim() }
+                    def sample_idx = header.indexOf('sample')
+                    def cram_idx   = header.indexOf('cram')
+                    def fq1_idx    = header.indexOf('fastq_1')
+                    def fq2_idx    = header.indexOf('fastq_2')
+                    def bam_idx    = header.indexOf('bam')
+                    def bai_idx    = header.indexOf('bai')
+                    def crai_idx   = header.indexOf('crai')
+
+                    lines.drop(1).eachWithIndex { line, line_idx ->
+                        def row_num = line_idx + 2
+                        def trimmed = line.trim()
+                        if (!trimmed || trimmed.startsWith('#')) return
+
+                        def cols = line.tokenize(',').collect { it.trim() }
+                        def sample_id = sample_idx >= 0 && sample_idx < cols.size() ? cols[sample_idx] : "row_${row_num}"
+
+                        // Collect all path entries in the row
+                        def check_path = { int idx, String col_name ->
+                            if (idx >= 0 && idx < cols.size() && cols[idx]) {
+                                def p = cols[idx]
+                                def f = file(p)
+                                if (!f.exists()) {
+                                    validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): ${col_name} file does not exist: ${p}")
+                                } else if (f.isEmpty()) {
+                                    validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): ${col_name} file is empty: ${p}")
+                                }
+                            }
+                        }
+
+                        check_path(cram_idx, 'cram')
+                        check_path(crai_idx, 'crai')
+                        check_path(fq1_idx,  'fastq_1')
+                        check_path(fq2_idx,  'fastq_2')
+                        check_path(bam_idx,  'bam')
+                        check_path(bai_idx,  'bai')
+                    }
+                }
+            }
         }
     }
 

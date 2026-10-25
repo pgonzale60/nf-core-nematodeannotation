@@ -1,8 +1,8 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/nf-core/nematodeannotation/master/assets/schema_input.json",
-    "title": "nf-core/nematodeannotation pipeline - params.input schema",
-    "description": "Schema for the file provided with params.input",
+    "$id": "https://raw.githubusercontent.com/pgonzale60/nf-core-nematodeannotation/main/assets/schema_input.json",
+    "title": "nf-core/nematodeannotation - params.rnaseq_samplesheet schema",
+    "description": "Schema for RNA-seq samplesheet (CSV format) providing raw CRAMs, FASTQs, or pre-aligned BAMs.",
     "type": "array",
     "items": {
         "type": "object",
@@ -13,21 +13,54 @@
                 "errorMessage": "Sample name must be provided and cannot contain spaces",
                 "meta": ["id"]
             },
+            "cram": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.cram$",
+                "errorMessage": "CRAM file must have extension '.cram' and point to an existing file."
+            },
+            "crai": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.(cram\\.crai|crai)$",
+                "errorMessage": "CRAM index file must have extension '.crai' or '.cram.crai'."
+            },
             "fastq_1": {
                 "type": "string",
                 "format": "file-path",
                 "exists": true,
-                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 1 must be provided, cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q(\\.gz)?$",
+                "errorMessage": "FastQ file for reads 1 must point to an existing file with extension '.fq', '.fastq', '.fq.gz', or '.fastq.gz'."
             },
             "fastq_2": {
                 "type": "string",
                 "format": "file-path",
                 "exists": true,
-                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q(\\.gz)?$",
+                "errorMessage": "FastQ file for reads 2 must point to an existing file with extension '.fq', '.fastq', '.fq.gz', or '.fastq.gz'."
+            },
+            "bam": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.bam$",
+                "errorMessage": "BAM file must point to an existing file with extension '.bam'."
+            },
+            "bai": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.(bam\\.bai|bai)$",
+                "errorMessage": "BAM index file must have extension '.bai' or '.bam.bai'."
             }
         },
-        "required": ["sample", "fastq_1"]
+        "required": ["sample"],
+        "anyOf": [
+            { "required": ["cram"] },
+            { "required": ["fastq_1"] },
+            { "required": ["bam"] }
+        ]
     }
 }
