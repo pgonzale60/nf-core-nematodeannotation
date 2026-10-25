@@ -427,7 +427,7 @@ workflow {
                 }
             } else if (params.interproscan_dir) {
                 ch_ipr_dir = file(params.interproscan_dir, checkIfExists: true)
-                ch_proteins_to_annotate = GENE_PREDICTION.out.representative_aa
+                ch_proteins_to_annotate = ch_representative_faa
 
                 FUNCTIONAL_ANNOTATION(
                     ch_proteins_to_annotate,
