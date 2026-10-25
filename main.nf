@@ -134,9 +134,96 @@ workflow {
 
     def commit_suffix = workflow.commitId ? workflow.commitId.take(9) : 'dev'
 
+    // =========================================================================
+    // PRE-RUN VERIFICATION GATE (Fail-Fast Parameter & Path Integrity Check)
+    // =========================================================================
+    def validation_errors = []
+
+    // 1. Mandatory Assembly
     if (!params.assembly) {
-        error "Mandatory parameter --assembly <path/to/assembly.fa> not specified. Run with --help for usage."
+        validation_errors.add("Mandatory parameter --assembly <path/to/assembly.fa> is missing.")
+    } else {
+        def fa_file = file(params.assembly)
+        if (!fa_file.exists() || fa_file.isEmpty()) {
+            validation_errors.add("Assembly file does not exist or is empty: ${params.assembly}")
+        }
     }
+
+    // 2. ncRNA & Rfam Model Verification (No silent skipping!)
+    if (!params.skip_ncrna) {
+        if (!params.rfam_cm && !params.ncrna_gff) {
+            validation_errors.add("ncRNA annotation is active, but neither --rfam_cm nor --ncrna_gff was provided.")
+        } else if (params.rfam_cm) {
+            def cm = file(params.rfam_cm)
+            if (!cm.exists() || cm.isEmpty()) {
+                validation_errors.add("Rfam covariance model file does not exist or is empty: ${params.rfam_cm}")
+            } else {
+                // Check for pressed index files
+                def missing_cmpress = ['.i1m', '.i1i', '.i1f', '.i1p'].findAll { ext -> !file("${params.rfam_cm}${ext}").exists() }
+                if (missing_cmpress) {
+                    log.warn "[PRE-RUN GATE] Rfam.cm is missing cmpress indices (${missing_cmpress.join(', ')}). Infernal will run cmpress on startup."
+                }
+            }
+        } else if (params.ncrna_gff) {
+            def ngff = file(params.ncrna_gff)
+            if (!ngff.exists() || ngff.isEmpty()) {
+                validation_errors.add("Provided pre-computed ncRNA GFF3 does not exist or is empty: ${params.ncrna_gff}")
+            }
+        }
+    }
+
+    // 3. RNA-seq Alignment / Samplesheet Verification
+    if (!params.skip_rnaseq) {
+        def has_samplesheet = params.rnaseq_samplesheet && file(params.rnaseq_samplesheet).exists()
+        def has_bam = (params.bam && file(params.bam).exists()) || (params.bams)
+        if (!has_samplesheet && !has_bam) {
+            validation_errors.add("RNA-seq alignment is active, but neither a valid --rnaseq_samplesheet nor pre-computed --bam/--bams was provided.")
+        }
+    }
+
+    // 4. Gene Prediction Reference Proteins & BUSCO Lineages
+    if (!params.skip_gene_prediction && !params.representative_gtf) {
+        if (params.proteins) {
+            def prot_file = file(params.proteins)
+            if (!prot_file.exists() || prot_file.isEmpty()) {
+                validation_errors.add("Reference protein FASTA does not exist or is empty: ${params.proteins}")
+            }
+        }
+        if (params.busco_lineages_path) {
+            def bl_dir = file(params.busco_lineages_path)
+            if (!bl_dir.exists() || !bl_dir.isDirectory()) {
+                validation_errors.add("BUSCO lineages directory does not exist or is not a directory: ${params.busco_lineages_path}")
+            }
+        }
+    }
+
+    // 5. Functional Annotation (InterProScan)
+    if (!params.skip_functional_annotation && !params.interproscan_tsv) {
+        if (!params.interproscan_dir) {
+            log.warn "[PRE-RUN GATE] --interproscan_dir not specified; functional annotation with InterProScan will be skipped."
+        } else {
+            def ipr_dir = file(params.interproscan_dir)
+            if (!ipr_dir.exists() || !ipr_dir.isDirectory()) {
+                validation_errors.add("InterProScan directory does not exist or is not a directory: ${params.interproscan_dir}")
+            }
+        }
+    }
+
+    // Halt immediately if any pre-run gate check failed
+    if (validation_errors) {
+        log.error "==================================================================="
+        log.error " PRE-RUN VERIFICATION GATE FAILED: ${validation_errors.size()} CRITICAL CONFIGURATION ISSUE(S)"
+        log.error "==================================================================="
+        validation_errors.eachWithIndex { err, i ->
+            log.error " [${i+1}] ${err}"
+        }
+        log.error "==================================================================="
+        error "Pre-run verification gate failed. Please correct the parameters above before executing."
+    }
+
+    log.info "==================================================================="
+    log.info " PRE-RUN VERIFICATION GATE PASSED: All inputs, databases, and paths verified."
+    log.info "==================================================================="
 
     ch_assembly_file = file(params.assembly, checkIfExists: true)
     def clean_assembly_id = ch_assembly_file.name.replaceAll(/(\.gz|\.bgz)$/, '').replaceAll(/\.(fa|fasta|fna)$/, '')
