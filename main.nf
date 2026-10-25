@@ -44,6 +44,7 @@ include { CHECK_HISAT2_ALIGNMENT    } from './modules/local/rnaseq_check/main'
 include { GFFREAD_PROTEIN           } from './modules/sanger-tol/gffread/main'
 include { GFFREAD_CDS               } from './modules/sanger-tol/gffread/main'
 include { softwareVersionsToYAML    } from './subworkflows/nf-core/utils_nfcore_pipeline/main'
+include { validateParameters; paramsHelp; paramsSummaryLog; samplesheetToList } from 'plugin/nf-schema'
 
 // Top-level Parameters
 params.assembly            = params.assembly            ?: null
@@ -101,165 +102,73 @@ params.interproscan_gff3   = params.interproscan_gff3   ?: null
 
 workflow {
     if (params.help) {
-        log.info """
-        ===================================================================
-        nf-core-nematodeannotation: Nematode Genome Annotation Pipeline
-        ===================================================================
-        Usage:
-          nextflow run main.nf --assembly <path/to/assembly.fa> [options]
-
-        Mandatory arguments:
-          --assembly             Path to input FASTA file (.fa, .fasta, .fa.gz, .fasta.gz)
-
-        Input / Output options:
-          --outdir               Path to directory where results are published
-          --fai                  Path to assembly FASTA index (.fai) [optional]
-          --rnaseq_samplesheet   Path to RNA-seq samplesheet CSV [optional]
-          --proteins             Path to OrthoDB/lineage protein FASTA for BRAKER3 [optional]
-          --busco_lineage        BUSCO lineage dataset (default: 'chromadorea_odb12')
-          --interproscan_dir     Path to InterProScan data directory [optional]
-
-        Bypass / Pre-computed options:
-          --representative_gtf   Pre-computed winning gene models GTF (bypasses BRAKER/Helixer/TSEBRA tournament)
-          --representative_faa   Pre-computed winning proteins FASTA [optional, derived from GTF if omitted]
-          --braker_gtf           Pre-computed BRAKER GTF
-          --braker_aa            Pre-computed BRAKER proteins
-          --helixer_gff3         Pre-computed Helixer GFF3
-          --interproscan_tsv     Pre-computed InterProScan TSV
-          --satellites_bed       Pre-computed satellites BED
-          --rfam_cm              Rfam covariance models file
-        ===================================================================
-        """.stripIndent()
+        log.info paramsHelp()
         exit 0
     }
 
-    def commit_suffix = workflow.commitId ? workflow.commitId.take(9) : 'dev'
+    // 1. Declarative parameter validation via nf-schema Draft 2020-12
+    validateParameters()
+    log.info paramsSummaryLog(workflow)
+
+    // 2. Validate RNA-seq samplesheet via nf-schema Draft 2020-12
+    if (params.rnaseq_samplesheet) {
+        samplesheetToList(params.rnaseq_samplesheet, "${projectDir}/assets/schema_input.json")
+    }
 
     // =========================================================================
-    // PRE-RUN VERIFICATION GATE (Fail-Fast Parameter & Path Integrity Check)
+    // DOMAIN-SPECIFIC PRE-RUN VERIFICATION GATE
+    // (Verifies binary indices & non-empty statuses beyond JSON schema reach)
     // =========================================================================
     def validation_errors = []
 
-    // 1. Mandatory Assembly
-    if (!params.assembly) {
-        validation_errors.add("Mandatory parameter --assembly <path/to/assembly.fa> is missing.")
-    } else {
+    // 1. Assembly non-empty verification
+    if (params.assembly) {
         def fa_file = file(params.assembly)
-        if (!fa_file.exists() || fa_file.isEmpty()) {
-            validation_errors.add("Assembly file does not exist or is empty: ${params.assembly}")
+        if (fa_file.isEmpty()) {
+            validation_errors.add("Assembly file is empty: ${params.assembly}")
         }
     }
 
-    // 2. ncRNA & Rfam Model Verification (No silent skipping!)
+    // 2. ncRNA & Rfam Model Indices Verification
     if (!params.skip_ncrna) {
         if (!params.rfam_cm && !params.ncrna_gff) {
             validation_errors.add("ncRNA annotation is active, but neither --rfam_cm nor --ncrna_gff was provided.")
         } else if (params.rfam_cm) {
             def cm = file(params.rfam_cm)
-            if (!cm.exists() || cm.isEmpty()) {
-                validation_errors.add("Rfam covariance model file does not exist or is empty: ${params.rfam_cm}")
+            if (cm.isEmpty()) {
+                validation_errors.add("Rfam covariance model file is empty: ${params.rfam_cm}")
             } else {
-                // Check for pressed index files
                 def missing_cmpress = ['.i1m', '.i1i', '.i1f', '.i1p'].findAll { ext -> !file("${params.rfam_cm}${ext}").exists() }
                 if (missing_cmpress) {
                     log.warn "[PRE-RUN GATE] Rfam.cm is missing cmpress indices (${missing_cmpress.join(', ')}). Infernal will run cmpress on startup."
                 }
             }
-        } else if (params.ncrna_gff) {
-            def ngff = file(params.ncrna_gff)
-            if (!ngff.exists() || ngff.isEmpty()) {
-                validation_errors.add("Provided pre-computed ncRNA GFF3 does not exist or is empty: ${params.ncrna_gff}")
-            }
         }
     }
 
-    // 3. RNA-seq Alignment / Samplesheet Verification
+    // 3. RNA-seq Active Alignment Source Verification
     if (!params.skip_rnaseq) {
         def has_samplesheet = params.rnaseq_samplesheet && file(params.rnaseq_samplesheet).exists()
         def has_bam = (params.bam && file(params.bam).exists()) || (params.bams)
         if (!has_samplesheet && !has_bam) {
             validation_errors.add("RNA-seq alignment is active, but neither a valid --rnaseq_samplesheet nor pre-computed --bam/--bams was provided.")
-        } else if (has_samplesheet) {
-            // Verify existence and readability of all file paths referenced inside the samplesheet
-            def ss_file = file(params.rnaseq_samplesheet)
-            if (ss_file.isEmpty()) {
-                validation_errors.add("Provided --rnaseq_samplesheet is empty: ${params.rnaseq_samplesheet}")
-            } else {
-                def lines = ss_file.readLines()
-                if (lines.size() < 2) {
-                    validation_errors.add("Provided --rnaseq_samplesheet has no sample rows: ${params.rnaseq_samplesheet}")
-                } else {
-                    def header = lines[0].tokenize(',').collect { it.trim() }
-                    def sample_idx = header.indexOf('sample')
-                    def cram_idx   = header.indexOf('cram')
-                    def fq1_idx    = header.indexOf('fastq_1')
-                    def fq2_idx    = header.indexOf('fastq_2')
-                    def bam_idx    = header.indexOf('bam')
-                    def bai_idx    = header.indexOf('bai')
-                    def crai_idx   = header.indexOf('crai')
-
-                    lines.drop(1).eachWithIndex { line, line_idx ->
-                        def row_num = line_idx + 2
-                        def trimmed = line.trim()
-                        if (!trimmed || trimmed.startsWith('#')) return
-
-                        def cols = line.tokenize(',').collect { it.trim() }
-                        def sample_id = sample_idx >= 0 && sample_idx < cols.size() ? cols[sample_idx] : "row_${row_num}"
-
-                        // Collect all path entries in the row
-                        def check_path = { int idx, String col_name ->
-                            if (idx >= 0 && idx < cols.size() && cols[idx]) {
-                                def p = cols[idx]
-                                def f = file(p)
-                                if (!f.exists()) {
-                                    validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): ${col_name} file does not exist: ${p}")
-                                } else if (f.isEmpty()) {
-                                    validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): ${col_name} file is empty: ${p}")
-                                }
-                            }
-                        }
-
-                        check_path(cram_idx, 'cram')
-                        check_path(crai_idx, 'crai')
-                        check_path(fq1_idx,  'fastq_1')
-                        check_path(fq2_idx,  'fastq_2')
-                        check_path(bam_idx,  'bam')
-                        check_path(bai_idx,  'bai')
-                    }
-                }
-            }
         }
     }
 
-    // 4. Gene Prediction Reference Proteins & BUSCO Lineages
-    if (!params.skip_gene_prediction && !params.representative_gtf) {
-        if (params.proteins) {
-            def prot_file = file(params.proteins)
-            if (!prot_file.exists() || prot_file.isEmpty()) {
-                validation_errors.add("Reference protein FASTA does not exist or is empty: ${params.proteins}")
-            }
-        }
-        if (params.busco_lineages_path) {
-            def bl_dir = file(params.busco_lineages_path)
-            if (!bl_dir.exists() || !bl_dir.isDirectory()) {
-                validation_errors.add("BUSCO lineages directory does not exist or is not a directory: ${params.busco_lineages_path}")
-            }
+    // 4. Gene Prediction Reference Proteins non-empty check
+    if (!params.skip_gene_prediction && !params.representative_gtf && params.proteins) {
+        def prot_file = file(params.proteins)
+        if (prot_file.isEmpty()) {
+            validation_errors.add("Reference protein FASTA is empty: ${params.proteins}")
         }
     }
 
     // 5. Functional Annotation (InterProScan)
-    if (!params.skip_functional_annotation && !params.interproscan_tsv) {
-        if (!params.interproscan_dir) {
-            log.warn "[PRE-RUN GATE] --interproscan_dir not specified; functional annotation with InterProScan will be skipped."
-        } else {
-            def ipr_dir = file(params.interproscan_dir)
-            if (!ipr_dir.exists() || !ipr_dir.isDirectory()) {
-                validation_errors.add("InterProScan directory does not exist or is not a directory: ${params.interproscan_dir}")
-            }
-        }
+    if (!params.skip_functional_annotation && !params.interproscan_tsv && !params.interproscan_dir) {
+        log.warn "[PRE-RUN GATE] --interproscan_dir not specified; functional annotation with InterProScan will be skipped."
     }
 
-    // Halt immediately if any pre-run gate check failed
+    // Halt immediately if any domain check failed
     if (validation_errors) {
         log.error "==================================================================="
         log.error " PRE-RUN VERIFICATION GATE FAILED: ${validation_errors.size()} CRITICAL CONFIGURATION ISSUE(S)"
@@ -359,7 +268,6 @@ workflow {
     ch_aligned_merged_bam = channel.empty()
 
     def precomputed_aln = params.bam ?: null
-    def needs_alignment = true
 
     if (precomputed_aln) {
         def aln_file = file(precomputed_aln, checkIfExists: true)
@@ -372,10 +280,8 @@ workflow {
         )
 
         // Evaluate whether header has HISAT2 provenance
-        // In DSL2 Nextflow scripts, we can check or branch
         ch_checked_aln = CHECK_HISAT2_ALIGNMENT.out.evaluation
         ch_hisat2_valid = ch_checked_aln.filter { _meta, _file, is_hisat2 -> is_hisat2.toString().trim() == 'true' }
-        ch_hisat2_invalid = ch_checked_aln.filter { _meta, _file, is_hisat2 -> is_hisat2.toString().trim() != 'true' }
 
         ch_aligned_merged_bam = ch_hisat2_valid.map { meta, aln_f, _res -> [ meta, aln_f ] }
         ch_primary_bam = ch_hisat2_valid.map { _meta, aln_f, _res -> aln_f }
@@ -444,11 +350,6 @@ workflow {
             120, 3, 10, 3, 1, 500
         )
     }
-
-    // -----------------------------------------------------------------------
-    // Stage 5: Dual Gene Prediction (BRAKER3 + Helixer + TSEBRA consensus)
-    // -----------------------------------------------------------------------
-    ch_consensus_gtf = channel.empty()
 
     // -----------------------------------------------------------------------
     // Stage 5: Dual-Evidence Gene Prediction (or Direct Representative Bypass)
@@ -651,7 +552,7 @@ workflow {
     // -----------------------------------------------------------------------
     if ((params.rnaseq_samplesheet || params.bam) && (params.representative_gtf || !params.skip_gene_prediction)) {
         ch_counts_input = ch_aligned_merged_bam
-            .map { meta, bam -> [ ch_assembly_meta.id, bam ] }
+            .map { _meta, bam -> [ ch_assembly_meta.id, bam ] }
             .join(ch_representative_gtf.map { meta, gtf -> [ meta.id, gtf ] })
             .map { id, bam, gtf -> [ [ id: id, single_end: false ], [ bam ], gtf ] }
 
@@ -661,9 +562,12 @@ workflow {
     }
 
     // -----------------------------------------------------------------------
-    // Stage 10: Collate & Publish Pipeline Software Versions
+    // Stage 10: Collate & Publish Pipeline Software Versions & Provenance
     // -----------------------------------------------------------------------
-    def topic_versions = Channel.topic("versions")
+    def pipeline_version_str = workflow.commitId ? "${workflow.manifest.version} (commit ${workflow.commitId.take(9)})" : "${workflow.manifest.version}"
+    def pipeline_prov_yaml = "Workflow:\n  nf-core/nematodeannotation: ${pipeline_version_str}"
+
+    def topic_versions = channel.topic("versions")
         .distinct()
         .branch { entry ->
             versions_file: entry instanceof Path
@@ -681,6 +585,7 @@ workflow {
         }
 
     softwareVersionsToYAML(channel.empty().mix(topic_versions.versions_file))
+        .mix(channel.of(pipeline_prov_yaml))
         .mix(topic_versions_string)
         .collectFile(
             storeDir: "${params.outdir}/pipeline_info",

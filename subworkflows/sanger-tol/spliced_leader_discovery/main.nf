@@ -40,7 +40,6 @@ workflow SPLICED_LEADER_DISCOVERY {
     val_rrna_flank                   // int: flank distance (bp) to exclude around rRNA arrays (default: 500)
 
     main:
-    ch_versions = channel.empty()
     ch_rrna_gff = ch_ncrna_gff ? ch_ncrna_gff.first() : []
 
     // 1. Parallel soft-clipped tail and trans-splice acceptor extraction per BAM
@@ -54,7 +53,6 @@ workflow SPLICED_LEADER_DISCOVERY {
         ch_extract_input.map { meta, bam, bai, _fa -> [ meta, bam, bai ] },
         ch_fasta.map { _meta, fa -> fa }.first()
     )
-    ch_versions = ch_versions.mix(SLIDR_EXTRACTTAILS.out.versions_python)
 
     // 2. Pool tails across libraries and cluster them with 3' anchoring
     ch_pooled_tails = SLIDR_EXTRACTTAILS.out.tails
@@ -65,7 +63,6 @@ workflow SPLICED_LEADER_DISCOVERY {
         ch_pooled_tails.map { files -> [ [ id: 'pooled' ], files ] },
         val_min_tail_len
     )
-    ch_versions = ch_versions.mix(SLIDR_CLUSTERTAILS.out.versions_python)
 
     // 3. Map cluster centroids to the genome to detect leader RNA genes
     SLIDR_SLRNASITES(
@@ -74,7 +71,6 @@ workflow SPLICED_LEADER_DISCOVERY {
         val_min_support,
         val_sl_evalue
     )
-    ch_versions = ch_versions.mix(SLIDR_SLRNASITES.out.versions_blast)
 
     // 4. Filter leader candidates by splice donor and Sm-binding site motif
     SLIDR_SLRNAFILTER(
@@ -86,7 +82,6 @@ workflow SPLICED_LEADER_DISCOVERY {
         val_sl_max_rna_len,
         val_sl_max_overlap
     )
-    ch_versions = ch_versions.mix(SLIDR_SLRNAFILTER.out.versions_python)
 
     // 5. Cross-reference acceptor sites against validated leaders, excluding rRNA mapping reads
     ch_pooled_sites = SLIDR_EXTRACTTAILS.out.sites
@@ -106,7 +101,6 @@ workflow SPLICED_LEADER_DISCOVERY {
         val_max_leader_gene_distance,
         val_rrna_flank
     )
-    ch_versions = ch_versions.mix(SLIDR_CONSENSUS.out.versions_python)
 
     // 6. Export high-confidence empirical TSS hints for gene annotation
     SLIDR_TSSEXPORTER(
@@ -114,7 +108,6 @@ workflow SPLICED_LEADER_DISCOVERY {
         val_min_tss_reads,
         val_min_tss_libraries
     )
-    ch_versions = ch_versions.mix(SLIDR_TSSEXPORTER.out.versions_python)
 
     emit:
     tails_fa         = SLIDR_EXTRACTTAILS.out.tails        // [ meta, tails.fa.gz ]
@@ -129,5 +122,4 @@ workflow SPLICED_LEADER_DISCOVERY {
     sl_fasta         = SLIDR_CONSENSUS.out.sl_fasta        // [ meta, sl_sequences.fa ]
     tss_gff          = SLIDR_TSSEXPORTER.out.tss_gff       // [ meta, prefix.tss.gff3 ]
     tss_metrics      = SLIDR_TSSEXPORTER.out.metrics       // [ meta, prefix.tss_metrics.tsv ]
-    versions         = ch_versions
 }

@@ -35,7 +35,6 @@ workflow REPEAT_ANNOTATION {
     ch_structural_mask_bed // channel: optional [ val(meta), path(bed) ] of structural RNA tandem arrays to hard-mask prior to Earl Grey
 
     main:
-    ch_versions = channel.empty()
 
     // 1. Satellite Consensus Masking & Profiling (Stevens protocol + SatelliteProfiler)
     REPEAT_MASKING_SATELLITES(
@@ -46,7 +45,6 @@ workflow REPEAT_ANNOTATION {
         val_min_copies,
         val_min_identity
     )
-    ch_versions = ch_versions.mix(REPEAT_MASKING_SATELLITES.out.versions)
 
     ch_sat_masked_fasta      = REPEAT_MASKING_SATELLITES.out.masked_fasta
     ch_sat_hard_masked_fasta = REPEAT_MASKING_SATELLITES.out.hard_masked_fasta
@@ -59,7 +57,6 @@ workflow REPEAT_ANNOTATION {
             ch_structural_mask_bed,
             ch_sat_hard_masked_fasta.map { _meta, fa -> fa }
         )
-        ch_versions             = ch_versions.mix(BEDTOOLS_MASK_STRUCTURAL.out.versions_bedtools)
         ch_earlgrey_input_fasta = BEDTOOLS_MASK_STRUCTURAL.out.fasta
     }
     ch_sat_bed               = REPEAT_MASKING_SATELLITES.out.satellite_bed
@@ -93,7 +90,6 @@ workflow REPEAT_ANNOTATION {
             ch_te_bed,
             ch_sat_masked_fasta.map { _meta, fa -> fa }
         )
-        ch_versions           = ch_versions.mix(BEDTOOLS_MASK_TE.out.versions_bedtools)
         ch_fully_masked_fasta = BEDTOOLS_MASK_TE.out.fasta
 
     } else if (!val_skip_te) {
@@ -101,7 +97,6 @@ workflow REPEAT_ANNOTATION {
             ch_earlgrey_input_fasta,
             val_rhabditida_clade
         )
-        ch_versions = ch_versions.mix(EARLGREY.out.versions_earlgrey)
         ch_te_gff3  = EARLGREY.out.gff3
         ch_te_bed   = EARLGREY.out.bed
 
@@ -112,7 +107,6 @@ workflow REPEAT_ANNOTATION {
             ch_te_bed,
             ch_sat_masked_fasta.map { _meta, fa -> fa }
         )
-        ch_versions           = ch_versions.mix(BEDTOOLS_MASK_TE.out.versions_bedtools)
         ch_fully_masked_fasta = BEDTOOLS_MASK_TE.out.fasta
     }
 
@@ -128,5 +122,4 @@ workflow REPEAT_ANNOTATION {
     satellite_library_fasta = ch_library_fasta             // [ meta, *_satellite_monomers.fasta ]
     te_gff3               = ch_te_gff3                     // [ meta, te.gff3 ]
     te_bed                = ch_te_bed                      // [ meta, te.bed ]
-    versions              = ch_versions
 }

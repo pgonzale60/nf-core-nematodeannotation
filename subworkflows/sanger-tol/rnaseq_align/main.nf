@@ -17,14 +17,12 @@ workflow RNASEQ_ALIGN {
     ch_samplesheet    // channel: path(samplesheet_csv)
 
     main:
-    ch_versions = channel.empty()
 
     // 1. Build HISAT2 index de novo
     HISAT2_BUILD(
         ch_assembly.map { meta, fasta -> [ meta, fasta, [], [] ] },
         false
     )
-    ch_versions = ch_versions.mix(HISAT2_BUILD.out.versions_hisat2)
     ch_hisat2_index = HISAT2_BUILD.out.index.first()
 
     // 2. Parse Samplesheet
@@ -64,7 +62,6 @@ workflow RNASEQ_ALIGN {
         ch_empty_ref.first(),
         false
     )
-    ch_versions = ch_versions.mix(SAMTOOLS_COLLATEFASTQ.out.versions_samtools)
 
     ch_fastq_from_cram = SAMTOOLS_COLLATEFASTQ.out.fastq.map { meta, fastqs -> [ meta, fastqs ] }
     ch_all_fastqs = ch_fastq_direct.mix(ch_fastq_from_cram)
@@ -74,7 +71,6 @@ workflow RNASEQ_ALIGN {
         ch_all_fastqs,
         ch_hisat2_index
     )
-    ch_versions = ch_versions.mix(SLIDR_ALIGNREADS.out.versions_hisat2)
 
     ch_aligned_bams = SLIDR_ALIGNREADS.out.bam
         .join(SLIDR_ALIGNREADS.out.bai)
@@ -95,11 +91,9 @@ workflow RNASEQ_ALIGN {
         ch_assembly.combine(ch_fai).map { meta, fasta, fai -> [ meta, fasta, fai, [] ] }.first(),
         'bai'
     )
-    ch_versions = ch_versions.mix(SAMTOOLS_MERGE.out.versions_samtools)
 
     emit:
     merged_bam      = SAMTOOLS_MERGE.out.bam          // [ meta, rnaseq_merged_spliced.bam ]
     merged_bai      = SAMTOOLS_MERGE.out.index        // [ meta, rnaseq_merged_spliced.bam.bai ]
     individual_bams = ch_aligned_bams                 // [ meta, bam, bai ]
-    versions        = ch_versions
 }

@@ -32,7 +32,6 @@ workflow REPEAT_MASKING_SATELLITES {
     val_min_identity   // int: min sequence identity percent (default: 85)
 
     main:
-    ch_versions = channel.empty()
 
     // 1. Generate non-overlapping genome windows to bound TRF memory
     ch_fai_meta = ch_fasta.map { meta, _fa -> meta }.first()
@@ -41,7 +40,6 @@ workflow REPEAT_MASKING_SATELLITES {
     BEDTOOLS_MAKEWINDOWS(
         ch_makewindows_input
     )
-    ch_versions = ch_versions.mix(BEDTOOLS_MAKEWINDOWS.out.versions_bedtools)
 
     // 2. Split window BED into parallel chunks (e.g. 20 intervals per chunk)
     ch_bed_chunks = BEDTOOLS_MAKEWINDOWS.out.bed
@@ -55,7 +53,6 @@ workflow REPEAT_MASKING_SATELLITES {
         ch_bed_chunks,
         ch_fasta.map { _meta, fa -> fa }.first()
     )
-    ch_versions = ch_versions.mix(BEDTOOLS_GETFASTA.out.versions_bedtools)
 
     // 3. Parallel harvesting using TRF v4.09 across all chunks
     // Parameters: match=2, mismatch=7, delta=7, PM=80, PI=10, minscore=50, maxperiod=500
@@ -63,7 +60,6 @@ workflow REPEAT_MASKING_SATELLITES {
         BEDTOOLS_GETFASTA.out.fasta,
         2, 7, 7, 80, 10, 50, 500
     )
-    ch_versions = ch_versions.mix(TRF.out.versions_trf)
 
     // 4. Collect all chunk .dat files and filter repeats (period >= 50, copies >= 100, identity >= 85%)
     // collect() emits a flat List; combine() with a value channel re-flattens it into positional args.
@@ -83,21 +79,18 @@ workflow REPEAT_MASKING_SATELLITES {
         val_min_copies,
         val_min_identity
     )
-    ch_versions = ch_versions.mix(SATELLITEFILTER.out.versions_python)
 
     // 5. Cluster candidate consensus units with VSEARCH at 90% identity
     // Configure VSEARCH to use --cluster_fast and emit --centroids
     VSEARCH_CLUSTER(
         SATELLITEFILTER.out.fasta
     )
-    ch_versions = ch_versions.mix(VSEARCH_CLUSTER.out.versions_vsearch)
 
     // 6. Build BLAST database for the reference assembly
     BLAST_MAKEBLASTDB(
         ch_fasta,
         []
     )
-    ch_versions = ch_versions.mix(BLAST_MAKEBLASTDB.out.versions_makeblastdb)
 
     // 7. Map centroids back to the assembly with BLASTN (E <= 0.01)
     ch_centroids = VSEARCH_CLUSTER.out.centroids
@@ -114,13 +107,11 @@ workflow REPEAT_MASKING_SATELLITES {
         [],
         []
     )
-    ch_versions = ch_versions.mix(BLAST_BLASTN.out.versions_blast)
 
     // 8. Convert BLAST alignments to sorted BED intervals
     BLASTTOBED(
         BLAST_BLASTN.out.txtgz
     )
-    ch_versions = ch_versions.mix(BLASTTOBED.out.versions_awk)
 
     // 9. Profile, classify, and annotate satellite arrays and monomers
     ch_profiler_input = BLASTTOBED.out.bed
@@ -131,13 +122,11 @@ workflow REPEAT_MASKING_SATELLITES {
         ch_profiler_input,
         100
     )
-    ch_versions = ch_versions.mix(SATELLITEPROFILER.out.versions_python)
 
     // 10. Merge adjacent intervals into a non-overlapping satellite mask
     BEDTOOLS_MERGE_SATELLITES(
         BLASTTOBED.out.bed
     )
-    ch_versions = ch_versions.mix(BEDTOOLS_MERGE_SATELLITES.out.versions_bedtools)
 
     // 11. Mask assembly using bedtools maskfasta
     // 11a. Soft-masking (for downstream gene callers)
@@ -145,14 +134,12 @@ workflow REPEAT_MASKING_SATELLITES {
         BEDTOOLS_MERGE_SATELLITES.out.bed,
         ch_fasta.map { _meta, fa -> fa }.first()
     )
-    ch_versions = ch_versions.mix(BEDTOOLS_MASK_SATELLITES.out.versions_bedtools)
 
     // 11b. Hard-masking with Ns (strictly for Earl Grey / RepeatModeler de novo TE discovery)
     BEDTOOLS_HARDMASK_SATELLITES(
         BEDTOOLS_MERGE_SATELLITES.out.bed,
         ch_fasta.map { _meta, fa -> fa }.first()
     )
-    ch_versions = ch_versions.mix(BEDTOOLS_HARDMASK_SATELLITES.out.versions_bedtools)
 
     emit:
     masked_fasta       = BEDTOOLS_MASK_SATELLITES.out.fasta       // [ meta, satellite_softmasked.fa ]
@@ -164,5 +151,4 @@ workflow REPEAT_MASKING_SATELLITES {
     families_tsv       = SATELLITEPROFILER.out.families_tsv       // [ meta, *_satellite_families.tsv ]
     library_fasta      = SATELLITEPROFILER.out.library_fasta      // [ meta, *_satellite_monomers.fasta ]
     summary            = SATELLITEFILTER.out.summary              // [ meta, trf_summary.tsv ]
-    versions           = ch_versions
 }

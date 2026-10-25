@@ -31,7 +31,6 @@ workflow GENE_PREDICTION {
     file_helixer_gtf       // path or null: pre-computed Helixer GTF
 
     main:
-    ch_versions = channel.empty()
     ch_assembly_plain = ch_assembly.map { _meta, fasta -> fasta }
 
     // 1. BRAKER3 (RNA-seq BAM + Protein Homology or pre-computed)
@@ -51,7 +50,6 @@ workflow GENE_PREDICTION {
             ch_proteins,
             []
         )
-        ch_versions     = ch_versions.mix(BRAKER3.out.versions_braker3)
         ch_braker_gtf   = BRAKER3.out.gtf
         ch_braker_aa    = BRAKER3.out.aa
         ch_augustus_gtf = BRAKER3.out.augustus_gtf
@@ -66,7 +64,6 @@ workflow GENE_PREDICTION {
         ch_genemark_for_prot,
         ch_assembly_plain
     )
-    ch_versions    = ch_versions.mix(GFFREAD_GENEMARK_PROTEIN.out.versions_gffread)
     ch_genemark_aa = GFFREAD_GENEMARK_PROTEIN.out.aa.map { meta, aa -> [ [ id: meta.id.replaceAll(/\.genemark$/, '') ], aa ] }
 
     // 2. HELIXER (Deep Learning ab initio or pre-computed)
@@ -76,20 +73,17 @@ workflow GENE_PREDICTION {
         GFFREAD_HELIXER(
             ch_assembly.map { meta, _f -> [ meta, file_helixer_gff3 ] }
         )
-        ch_versions    = ch_versions.mix(GFFREAD_HELIXER.out.versions_gffread)
         ch_helixer_gtf = GFFREAD_HELIXER.out.gtf
     } else {
         HELIXER(
             ch_assembly,
             val_helixer_lineage
         )
-        ch_versions = ch_versions.mix(HELIXER.out.versions_helixer)
 
         // 3. Convert Helixer GFF3 to clean GTF
         GFFREAD_HELIXER(
             HELIXER.out.gff3
         )
-        ch_versions    = ch_versions.mix(GFFREAD_HELIXER.out.versions_gffread)
         ch_helixer_gtf = GFFREAD_HELIXER.out.gtf
     }
 
@@ -104,7 +98,6 @@ workflow GENE_PREDICTION {
         [],
         []
     )
-    ch_versions = ch_versions.mix(TSEBRA.out.versions_tsebra)
 
     // 5. Extract protein sequences for Helixer and TSEBRA consensus
     ch_helixer_gtf_for_prot = ch_helixer_gtf.map { meta, gtf -> [ [ id: "${meta.id}.helixer" ], gtf ] }
@@ -112,7 +105,6 @@ workflow GENE_PREDICTION {
         ch_helixer_gtf_for_prot,
         ch_assembly_plain
     )
-    ch_versions    = ch_versions.mix(GFFREAD_HELIXER_PROTEIN.out.versions_gffread)
     ch_helixer_aa  = GFFREAD_HELIXER_PROTEIN.out.aa.map { meta, aa -> [ [ id: meta.id.replaceAll(/\.helixer$/, '') ], aa ] }
 
     ch_tsebra_gtf_for_prot = TSEBRA.out.tsebra_gtf.map { meta, gtf -> [ [ id: "${meta.id}.tsebra" ], gtf ] }
@@ -120,7 +112,6 @@ workflow GENE_PREDICTION {
         ch_tsebra_gtf_for_prot,
         ch_assembly_plain
     )
-    ch_versions   = ch_versions.mix(GFFREAD_TSEBRA_PROTEIN.out.versions_gffread)
     ch_tsebra_aa  = GFFREAD_TSEBRA_PROTEIN.out.aa.map { meta, aa -> [ [ id: meta.id.replaceAll(/\.tsebra$/, '') ], aa ] }
 
     // 6. Consolidated Tournament Selection via in-process BUSCO
@@ -156,20 +147,17 @@ workflow GENE_PREDICTION {
         val_busco_lineage,
         ch_busco_lineages
     )
-    ch_versions = ch_versions.mix(SELECTBESTMODEL.out.versions_python)
 
     // Standardize representative outputs to NCBI/EBI .faa and .fna
     GFFREAD_REPRESENTATIVE_FAA(
         SELECTBESTMODEL.out.representative_gtf,
         ch_assembly_plain
     )
-    ch_versions = ch_versions.mix(GFFREAD_REPRESENTATIVE_FAA.out.versions_gffread)
 
     GFFREAD_REPRESENTATIVE_FNA(
         SELECTBESTMODEL.out.representative_gtf,
         ch_assembly_plain
     )
-    ch_versions = ch_versions.mix(GFFREAD_REPRESENTATIVE_FNA.out.versions_gffread)
 
     // Archive all suboptimal GTF models into <id>.suboptimal_gene_models.tar.gz
     ch_all_gtfs = ch_braker_gtf.map { meta, gtf -> [ meta.id, meta, gtf ] }
@@ -185,7 +173,6 @@ workflow GENE_PREDICTION {
     ARCHIVE_SUBOPTIMAL_MODELS(
         ch_all_gtfs
     )
-    ch_versions = ch_versions.mix(ARCHIVE_SUBOPTIMAL_MODELS.out.versions_tar)
 
     emit:
     representative_gtf        = SELECTBESTMODEL.out.representative_gtf
@@ -193,5 +180,4 @@ workflow GENE_PREDICTION {
     representative_fna        = GFFREAD_REPRESENTATIVE_FNA.out.cds
     representative_tsv        = SELECTBESTMODEL.out.decision_tsv
     suboptimal_models_archive = ARCHIVE_SUBOPTIMAL_MODELS.out.archive
-    versions                  = ch_versions
 }

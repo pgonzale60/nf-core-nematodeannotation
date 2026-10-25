@@ -11,17 +11,14 @@ workflow FUNCTIONAL_ANNOTATION {
     ch_ipr_dir      // path(interproscan_dir)
 
     main:
-    ch_versions = channel.empty()
 
     INTERPROSCAN(
         ch_proteins,
         ch_ipr_dir
     )
-    ch_versions = ch_versions.mix(INTERPROSCAN.out.versions_interproscan)
 
     emit:
     tsv      = INTERPROSCAN.out.tsv
     gff3     = INTERPROSCAN.out.gff3
     xml      = INTERPROSCAN.out.xml
-    versions = ch_versions
 }
