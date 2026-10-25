@@ -156,7 +156,7 @@ workflow GENE_PREDICTION {
         val_busco_lineage,
         ch_busco_lineages
     )
-    ch_versions = ch_versions.mix(SELECTBESTMODEL.out.versions_selector)
+    ch_versions = ch_versions.mix(SELECTBESTMODEL.out.versions_python)
 
     // Standardize representative outputs to NCBI/EBI .faa and .fna
     GFFREAD_REPRESENTATIVE_FAA(
