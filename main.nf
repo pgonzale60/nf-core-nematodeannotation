@@ -86,6 +86,8 @@ params.max_dist            = params.max_dist            ?: 1000
 // Gene Prediction & Pre-computed Ingestion parameters
 params.proteins            = params.proteins            ?: null
 params.helixer_lineage     = params.helixer_lineage     ?: 'invertebrate'
+params.skip_helixer        = params.skip_helixer        ?: false
+params.run_helixer         = params.run_helixer         ?: false
 params.busco_lineage       = params.busco_lineage       ?: 'chromadorea_odb12'
 params.busco_lineages_path = params.busco_lineages_path ?: null
 params.skip_gene_prediction = params.skip_gene_prediction ?: false
@@ -438,6 +440,8 @@ workflow {
         file_helixer_gff3 = params.helixer_gff3 ? file(params.helixer_gff3, checkIfExists: true) : null
         file_helixer_gtf  = params.helixer_gtf  ? file(params.helixer_gtf, checkIfExists: true)  : null
 
+        def skip_helixer_val = params.skip_helixer || !params.run_helixer
+
         GENE_PREDICTION(
             ch_sat_masked_assembly,
             ch_primary_bam,
@@ -449,7 +453,8 @@ workflow {
             file_braker_aa,
             file_braker_hints,
             file_helixer_gff3,
-            file_helixer_gtf
+            file_helixer_gtf,
+            skip_helixer_val
         )
         ch_representative_gtf = GENE_PREDICTION.out.representative_gtf
         ch_representative_faa = GENE_PREDICTION.out.representative_faa

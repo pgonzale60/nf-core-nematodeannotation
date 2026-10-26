@@ -208,6 +208,11 @@
                     "default": "invertebrate",
                     "description": "Helixer neural network lineage model ('invertebrate', 'fungi', 'vertebrate', 'land_plant')."
                 },
+                "run_helixer": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Explicitly run Helixer de novo deep learning prediction within the tournament."
+                },
                 "busco_lineage": {
                     "type": "string",
                     "default": "chromadorea_odb12",
@@ -339,6 +344,11 @@
                 "skip_gene_prediction": {
                     "type": "boolean",
                     "description": "Skip BRAKER3 and Helixer gene prediction."
+                },
+                "skip_helixer": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Skip Helixer de novo deep learning prediction during gene prediction (default: true)."
                 },
                 "skip_functional_annotation": {
                     "type": "boolean",

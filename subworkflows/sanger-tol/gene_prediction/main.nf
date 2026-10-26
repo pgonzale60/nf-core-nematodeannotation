@@ -29,6 +29,7 @@ workflow GENE_PREDICTION {
     file_braker_hints      // path or null: pre-computed hintsfile.gff
     file_helixer_gff3      // path or null: pre-computed Helixer GFF3
     file_helixer_gtf       // path or null: pre-computed Helixer GTF
+    val_skip_helixer       // boolean: whether to skip Helixer execution (default: true)
 
     main:
     ch_assembly_plain = ch_assembly.map { _meta, fasta -> fasta }
@@ -66,7 +67,11 @@ workflow GENE_PREDICTION {
     )
     ch_genemark_aa = GFFREAD_GENEMARK_PROTEIN.out.aa.map { meta, aa -> [ [ id: meta.id.replaceAll(/\.genemark$/, '') ], aa ] }
 
-    // 2. HELIXER (Deep Learning ab initio or pre-computed)
+    // 2. HELIXER (Deep Learning ab initio or pre-computed, optional)
+    ch_helixer_gtf = channel.empty()
+    ch_helixer_aa  = channel.empty()
+    ch_cand_helixer = channel.empty()
+
     if (file_helixer_gtf) {
         ch_helixer_gtf = ch_assembly.map { meta, _f -> [ meta, file_helixer_gtf ] }
     } else if (file_helixer_gff3) {
@@ -74,7 +79,7 @@ workflow GENE_PREDICTION {
             ch_assembly.map { meta, _f -> [ meta, file_helixer_gff3 ] }
         )
         ch_helixer_gtf = GFFREAD_HELIXER.out.gtf
-    } else {
+    } else if (!val_skip_helixer) {
         HELIXER(
             ch_assembly,
             val_helixer_lineage
@@ -88,9 +93,16 @@ workflow GENE_PREDICTION {
     }
 
     // 4. TSEBRA Consensus Filtering & Reconciliation
+    // Combine BRAKER3 GTF with Helixer GTF if available, otherwise filter BRAKER3 models alone
     ch_combined_gtfs = ch_braker_gtf
-        .join(ch_helixer_gtf)
-        .map { meta, gtf1, gtf2 -> [ meta, [ gtf1, gtf2 ] ] }
+        .join(ch_helixer_gtf, remainder: true)
+        .map { meta, gtf1, gtf2 ->
+            def gtfs = [ gtf1 ]
+            if (gtf2) {
+                gtfs.add(gtf2)
+            }
+            [ meta, gtfs ]
+        }
 
     TSEBRA(
         ch_combined_gtfs,
@@ -99,13 +111,19 @@ workflow GENE_PREDICTION {
         []
     )
 
-    // 5. Extract protein sequences for Helixer and TSEBRA consensus
-    ch_helixer_gtf_for_prot = ch_helixer_gtf.map { meta, gtf -> [ [ id: "${meta.id}.helixer" ], gtf ] }
-    GFFREAD_HELIXER_PROTEIN(
-        ch_helixer_gtf_for_prot,
-        ch_assembly_plain
-    )
-    ch_helixer_aa  = GFFREAD_HELIXER_PROTEIN.out.aa.map { meta, aa -> [ [ id: meta.id.replaceAll(/\.helixer$/, '') ], aa ] }
+    // 5. Extract protein sequences for Helixer (if active) and TSEBRA consensus
+    if (file_helixer_gtf || file_helixer_gff3 || !val_skip_helixer) {
+        ch_helixer_gtf_for_prot = ch_helixer_gtf.map { meta, gtf -> [ [ id: "${meta.id}.helixer" ], gtf ] }
+        GFFREAD_HELIXER_PROTEIN(
+            ch_helixer_gtf_for_prot,
+            ch_assembly_plain
+        )
+        ch_helixer_aa  = GFFREAD_HELIXER_PROTEIN.out.aa.map { meta, aa -> [ [ id: meta.id.replaceAll(/\.helixer$/, '') ], aa ] }
+
+        ch_cand_helixer = ch_helixer_gtf.map { meta, gtf -> [ meta.id, meta, gtf ] }
+            .join(ch_helixer_aa.map { meta, aa -> [ meta.id, aa ] })
+            .map { id, meta, gtf, aa -> [ id, meta, 'Helixer', gtf, aa ] }
+    }
 
     ch_tsebra_gtf_for_prot = TSEBRA.out.tsebra_gtf.map { meta, gtf -> [ [ id: "${meta.id}.tsebra" ], gtf ] }
     GFFREAD_TSEBRA_PROTEIN(
@@ -126,10 +144,6 @@ workflow GENE_PREDICTION {
     ch_cand_genemark = ch_genemark_gtf.map { meta, gtf -> [ meta.id, meta, gtf ] }
         .join(ch_genemark_aa.map { meta, aa -> [ meta.id, aa ] })
         .map { id, meta, gtf, aa -> [ id, meta, 'GeneMark', gtf, aa ] }
-
-    ch_cand_helixer = ch_helixer_gtf.map { meta, gtf -> [ meta.id, meta, gtf ] }
-        .join(ch_helixer_aa.map { meta, aa -> [ meta.id, aa ] })
-        .map { id, meta, gtf, aa -> [ id, meta, 'Helixer', gtf, aa ] }
 
     ch_cand_tsebra = TSEBRA.out.tsebra_gtf.map { meta, gtf -> [ meta.id, meta, gtf ] }
         .join(ch_tsebra_aa.map { meta, aa -> [ meta.id, aa ] })
