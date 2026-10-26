@@ -91,6 +91,8 @@ workflow NEMATODEANNOTATION {
     // 6. Dual-Evidence Gene Prediction Multi-Candidate Tournament
     ch_bam_for_gene_pred = ch_rnaseq_samplesheet ? ch_merged_bam.map { _meta, bam -> bam } : channel.empty()
 
+    def skip_helixer_val = params.skip_helixer || !params.run_helixer
+
     GENE_PREDICTION(
         REPEAT_ANNOTATION.out.masked_fasta,
         ch_bam_for_gene_pred,
@@ -102,7 +104,8 @@ workflow NEMATODEANNOTATION {
         params.braker_aa       ? file(params.braker_aa, checkIfExists: true) : null,
         params.braker_hints    ? file(params.braker_hints, checkIfExists: true) : null,
         params.helixer_gff3    ? file(params.helixer_gff3, checkIfExists: true) : null,
-        params.helixer_gtf     ? file(params.helixer_gtf, checkIfExists: true) : null
+        params.helixer_gtf     ? file(params.helixer_gtf, checkIfExists: true) : null,
+        skip_helixer_val
     )
     ch_versions = ch_versions.mix(GENE_PREDICTION.out.versions)
 
