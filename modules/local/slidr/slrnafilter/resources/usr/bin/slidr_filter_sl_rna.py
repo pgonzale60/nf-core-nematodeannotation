@@ -14,9 +14,9 @@ import gzip
 import os
 import re
 import sys
+from typing import Dict
 
 REV_COMP_TABLE = str.maketrans("ACGTNacgtn", "TGCANtgcan")
-
 
 def revcomp(seq: str) -> str:
     return seq.translate(REV_COMP_TABLE)[::-1]
@@ -24,7 +24,6 @@ def revcomp(seq: str) -> str:
 
 class FastaIndexedReader:
     """Fast indexed FASTA reader."""
-
     def __init__(self, fasta_path: str):
         self.fasta_path = fasta_path
         self.fai_path = fasta_path + ".fai"
@@ -107,17 +106,20 @@ class FastaIndexedReader:
         self._index = index
         try:
             with open(self.fai_path, "w") as out:
-                out.writelines(f"{name}\t{ln}\t{off}\t{lb}\t{nlb}\n" for name, (ln, off, lb, nlb) in index.items())
+                for name, (ln, off, lb, nlb) in index.items():
+                    out.write(f"{name}\t{ln}\t{off}\t{lb}\t{nlb}\n")
         except OSError:
             pass
 
     def fetch(self, chrom: str, start: int, end: int) -> str:
-        start = max(start, 0)
+        if start < 0:
+            start = 0
         if chrom not in self._index or self._file is None:
             return ""
 
         chrom_len, offset, line_bases, line_bytes = self._index[chrom]
-        end = min(end, chrom_len)
+        if end > chrom_len:
+            end = chrom_len
         if start >= end:
             return ""
 
@@ -127,9 +129,7 @@ class FastaIndexedReader:
         start_byte = offset + start_line * line_bytes + start_col
 
         total_bases = end - start
-        bytes_to_read = (
-            total_bases + ((start_col + total_bases) // line_bases + 1) * nl_len
-        )
+        bytes_to_read = total_bases + ((start_col + total_bases) // line_bases + 1) * nl_len
         self._file.seek(start_byte)
         chunk = self._file.read(bytes_to_read).decode("ascii", errors="replace")
         seq = "".join(chunk.split())[:total_bases]
@@ -140,7 +140,7 @@ class FastaIndexedReader:
             self._file.close()
 
 
-def read_fasta_dict(fasta_path: str) -> dict[str, str]:
+def read_fasta_dict(fasta_path: str) -> Dict[str, str]:
     """Read FASTA into a dict {seq_id: seq}."""
     res = {}
     opener = gzip.open if fasta_path.endswith(".gz") else open
@@ -167,33 +167,15 @@ def main():
     parser = argparse.ArgumentParser(
         description="Filter tail centroids for SL RNA genomic loci (donor GT + Sm motif)."
     )
-    parser.add_argument(
-        "--blast", required=True, help="BLASTN tabular output file (outfmt 6)"
-    )
+    parser.add_argument("--blast", required=True, help="BLASTN tabular output file (outfmt 6)")
     parser.add_argument("--centroids", required=True, help="Tail centroids FASTA file")
     parser.add_argument("--fasta", required=True, help="Reference assembly FASTA file")
     parser.add_argument("--prefix", default="slidr", help="Output prefix")
     parser.add_argument("--outdir", default=".", help="Output directory")
-    parser.add_argument(
-        "--donor", default="GT", help="Splice donor regex (default: GT)"
-    )
-    parser.add_argument(
-        "--sm",
-        default=r".{20,60}AT{4,6}G",
-        help="Sm-binding site motif regex (default: .{20,60}AT{4,6}G)",
-    )
-    parser.add_argument(
-        "--max-rna-len",
-        type=int,
-        default=80,
-        help="Max SL RNA length excluding SL (default: 80 bp)",
-    )
-    parser.add_argument(
-        "--max-overlap",
-        type=int,
-        default=10,
-        help="Max SL overlap with donor site (default: 10 bp)",
-    )
+    parser.add_argument("--donor", default="GT", help="Splice donor regex (default: GT)")
+    parser.add_argument("--sm", default=r".{20,60}AT{4,6}G", help="Sm-binding site motif regex (default: .{20,60}AT{4,6}G)")
+    parser.add_argument("--max-rna-len", type=int, default=80, help="Max SL RNA length excluding SL (default: 80 bp)")
+    parser.add_argument("--max-overlap", type=int, default=10, help="Max SL overlap with donor site (default: 10 bp)")
 
     args = parser.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
@@ -212,15 +194,12 @@ def main():
 
     opener = gzip.open if args.blast.endswith(".gz") else open
 
-    with (
-        opener(args.blast, "rt") as bf,
-        open(out_fa_path, "w") as fa_out,
-        open(out_tsv_path, "w") as tsv_out,
-        open(out_gff_path, "w") as gff_out,
-    ):
-        tsv_out.write(
-            "centroid_id\tchrom\tsl_start\tsl_end\tstrand\tsl_seq\tdonor_motif\tsm_motif\tsl_rna_seq\n"
-        )
+    with opener(args.blast, "rt") as bf, \
+         open(out_fa_path, "w") as fa_out, \
+         open(out_tsv_path, "w") as tsv_out, \
+         open(out_gff_path, "w") as gff_out:
+
+        tsv_out.write("centroid_id\tchrom\tsl_start\tsl_end\tstrand\tsl_seq\tdonor_motif\tsm_motif\tsl_rna_seq\n")
         gff_out.write("##gff-version 3\n")
 
         for line in bf:
@@ -247,7 +226,7 @@ def main():
             if qend != qlen:
                 continue
 
-            is_plus_strand = sstart < send
+            is_plus_strand = (sstart < send)
             strand = "+" if is_plus_strand else "-"
 
             sl_seq = centroids.get(qseqid, qseq)
@@ -274,7 +253,7 @@ def main():
                 if match_start <= args.max_overlap:
                     donor_seq = match.group(1).upper()
                     sm_seq = match.group(2).upper()
-                    full_rna_trailer = flank_seq[: match.end()].upper()
+                    full_rna_trailer = flank_seq[:match.end()].upper()
                     full_sl_rna = (sl_seq + full_rna_trailer).upper()
 
                     candidates_count += 1
@@ -288,12 +267,8 @@ def main():
                         gene_start = send - match.end()
                         gene_end = sstart
 
-                    fa_out.write(
-                        f">{cid} {chrom}:{gene_start}-{gene_end}({strand}) sl={qseqid}\n{full_sl_rna}\n"
-                    )
-                    tsv_out.write(
-                        f"{qseqid}\t{chrom}\t{gene_start}\t{gene_end}\t{strand}\t{sl_seq}\t{donor_seq}\t{sm_seq}\t{full_sl_rna}\n"
-                    )
+                    fa_out.write(f">{cid} {chrom}:{gene_start}-{gene_end}({strand}) sl={qseqid}\n{full_sl_rna}\n")
+                    tsv_out.write(f"{qseqid}\t{chrom}\t{gene_start}\t{gene_end}\t{strand}\t{sl_seq}\t{donor_seq}\t{sm_seq}\t{full_sl_rna}\n")
 
                     gff_out.write(
                         f"{chrom}\tSLIDR\tSL_RNA\t{gene_start}\t{gene_end}\t.\t{strand}\t.\t"
@@ -301,10 +276,7 @@ def main():
                     )
 
     fa_reader.close()
-    print(
-        f"[slidr_filter_sl_rna] Processed {blast_records_count:,} alignments -> Identified {candidates_count:,} candidate SL RNA loci.",
-        file=sys.stderr,
-    )
+    print(f"[slidr_filter_sl_rna] Processed {blast_records_count:,} alignments -> Identified {candidates_count:,} candidate SL RNA loci.", file=sys.stderr)
 
 
 if __name__ == "__main__":

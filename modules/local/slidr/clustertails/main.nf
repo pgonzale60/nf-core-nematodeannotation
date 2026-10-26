@@ -40,7 +40,7 @@ process SLIDR_CLUSTERTAILS {
     tuple val(meta), path("${prefix}_centroids.fa")       , emit: centroids
     tuple val(meta), path("${prefix}_cluster_summary.tsv"), emit: summary
     tuple val(meta), path("${prefix}_readinfo.tsv.gz")    , emit: readinfo
-    tuple val("${task.process}"), val('slidr'), val('0.1.0'), topic: versions, emit: versions_slidr
+    tuple val("${task.process}"), val('python'), eval("python3 --version | sed 's/Python //'"), topic: versions, emit: versions_python
 
     when:
     task.ext.when == null || task.ext.when
@@ -51,7 +51,7 @@ process SLIDR_CLUSTERTAILS {
     def minl = min_len ?: 8
 
     """
-    # Tool: slidr_cluster_tails.py | Script-SHA: 74eb0bd802dbc1e2
+    # Tool: slidr_cluster_tails.py | Script-SHA: 5f21be064fa1d26e
     slidr_cluster_tails.py \\
         --tails ${tails} \\
         --min-len ${minl} \\

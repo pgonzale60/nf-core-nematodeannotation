@@ -7,12 +7,12 @@
 */
 
 // Subworkflows
-include { REPEAT_MASKING_SATELLITES } from '../subworkflows/sanger-tol/repeat_masking_satellites/main'
-include { REPEAT_ANNOTATION         } from '../subworkflows/sanger-tol/repeat_annotation/main'
-include { RNASEQ_ALIGN              } from '../subworkflows/sanger-tol/rnaseq_align/main'
-include { SPLICED_LEADER_DISCOVERY  } from '../subworkflows/sanger-tol/spliced_leader_discovery/main'
-include { GENE_PREDICTION           } from '../subworkflows/sanger-tol/gene_prediction/main'
-include { FUNCTIONAL_ANNOTATION     } from '../subworkflows/sanger-tol/functional_annotation/main'
+include { REPEAT_MASKING_SATELLITES } from '../subworkflows/local/repeat_masking_satellites/main'
+include { REPEAT_ANNOTATION         } from '../subworkflows/local/repeat_annotation/main'
+include { RNASEQ_ALIGN              } from '../subworkflows/local/rnaseq_align/main'
+include { SPLICED_LEADER_DISCOVERY  } from '../subworkflows/local/spliced_leader_discovery/main'
+include { GENE_PREDICTION           } from '../subworkflows/local/gene_prediction/main'
+include { FUNCTIONAL_ANNOTATION     } from '../subworkflows/local/functional_annotation/main'
 
 // Modules
 include { SAMTOOLS_VIEW as BAM_TO_CRAM } from '../modules/nf-core/samtools/view/main'

@@ -22,7 +22,7 @@ process SLIDR_TSSEXPORTER {
     output:
     tuple val(meta), path("*.tss.gff3")       , emit: tss_gff
     tuple val(meta), path("*.tss_metrics.tsv"), emit: metrics
-    tuple val("${task.process}"), val('slidr'), val('0.1.0'), topic: versions, emit: versions_slidr
+    tuple val("${task.process}"), val('python'), eval("python3 --version | sed 's/Python //'"), topic: versions, emit: versions_python
 
     when:
     task.ext.when == null || task.ext.when
@@ -34,7 +34,7 @@ process SLIDR_TSSEXPORTER {
     def min_l    = min_libraries ?: 1
 
     """
-    # Tool: slidr_tss_exporter.py | Script-SHA: 69a59fd4483c9370
+    # Tool: slidr_tss_exporter.py | Script-SHA: fe68134bed185d4c
     slidr_tss_exporter.py \\
         --pool ${pool} \\
         --prefix "${prefix}" \\

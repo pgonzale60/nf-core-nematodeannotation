@@ -16,7 +16,7 @@ process SELECTBESTMODEL {
     tuple val(meta), path("${prefix}.gtf"),          emit: representative_gtf
     tuple val(meta), path("${prefix}.aa"),           emit: representative_aa
     tuple val(meta), path("${prefix}_decision.tsv"), emit: decision_tsv
-    tuple val("${task.process}"), val('tournament_selector'), val('0.1.0'), topic: versions, emit: versions_selector
+    tuple val("${task.process}"), val('python'), eval("python3 --version | sed 's/Python //'"), topic: versions, emit: versions_python
 
     when:
     task.ext.when == null || task.ext.when
@@ -33,7 +33,7 @@ process SELECTBESTMODEL {
     }
     def cand_str = cand_args.join(' ')
     """
-    # Tool: select_best_annotation.py | Script-SHA: 226c8326e5be2193
+    # Tool: select_best_annotation.py | Script-SHA: 71c6fa2d5c9b9934
     # Fix Augustus environment variables for Apptainer if present
     ENV_AUGUSTUS=/opt/conda/etc/conda/activate.d/augustus.sh
     if [ -f "\$ENV_AUGUSTUS" ]; then

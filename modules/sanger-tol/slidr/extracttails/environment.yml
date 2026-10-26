@@ -1,9 +1,0 @@
-name: slidr_extracttails
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  - python>=3.10
-  - pysam>=0.22.0
-  - samtools>=1.20
