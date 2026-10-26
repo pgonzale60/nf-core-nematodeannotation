@@ -39,8 +39,10 @@ include { SLOPPR_OPERONS            } from './modules/local/sloppr/operons/main'
 include { TESCORER                  } from './modules/local/tescorer/main'
 include { SUBREAD_FEATURECOUNTS     } from './modules/nf-core/subread/featurecounts/main'
 include { SAMTOOLS_VIEW as BAM_TO_CRAM } from './modules/nf-core/samtools/view/main'
-include { SAMTOOLS_INDEX as INDEX_CRAM } from './modules/nf-core/samtools/index/main'
-include { CHECK_HISAT2_ALIGNMENT    } from './modules/local/rnaseq_check/main'
+include { SAMTOOLS_INDEX as INDEX_CRAM   } from './modules/nf-core/samtools/index/main'
+include { SAMTOOLS_INDEX as INDEX_PRECOMPUTED_BAM } from './modules/nf-core/samtools/index/main'
+include { SAMTOOLS_INDEX as INDEX_SL_BAM } from './modules/nf-core/samtools/index/main'
+include { VALIDATE_RNASEQ_ALIGNMENT      } from './modules/local/validate_rnaseq_alignment/main'
 include { GFFREAD_PROTEIN           } from './modules/local/gffread/main'
 include { GFFREAD_CDS               } from './modules/local/gffread/main'
 include { softwareVersionsToYAML    } from './subworkflows/nf-core/utils_nfcore_pipeline/main'
@@ -280,19 +282,31 @@ workflow {
     if (precomputed_aln) {
         def aln_file = file(precomputed_aln, checkIfExists: true)
         def aln_idx = file("${aln_file}.bai").exists() ? file("${aln_file}.bai") :
-                     (file("${aln_file}.crai").exists() ? file("${aln_file}.crai") : [])
+                     (file("${aln_file.toString().replaceAll('\\.bam$', '')}.bai").exists() ? file("${aln_file.toString().replaceAll('\\.bam$', '')}.bai") :
+                     (file("${aln_file}.crai").exists() ? file("${aln_file}.crai") : []))
 
-        CHECK_HISAT2_ALIGNMENT(
-            channel.of([ [ id: ch_assembly_meta.id ], aln_file, aln_idx ]),
-            ch_assembly.map { _meta, fasta -> fasta }.first()
+        def ch_precomputed_raw = channel.of([ [ id: ch_assembly_meta.id ], aln_file, aln_idx ])
+        def ch_aln_has_idx = ch_precomputed_raw.filter { _m, _bam, idx -> idx != [] }
+        def ch_aln_needs_idx = ch_precomputed_raw.filter { _m, _bam, idx -> idx == [] }.map { m, bam, _idx -> [ m, bam ] }
+
+        INDEX_PRECOMPUTED_BAM(ch_aln_needs_idx)
+        def ch_aln_indexed = ch_aln_needs_idx.join(INDEX_PRECOMPUTED_BAM.out.index).map { m, bam, idx -> [ m, bam, idx ] }
+
+        def ch_precomputed_with_idx = ch_aln_has_idx.mix(ch_aln_indexed)
+
+        VALIDATE_RNASEQ_ALIGNMENT(
+            ch_precomputed_with_idx,
+            ch_fai.map { fai -> [ [ id: ch_assembly_meta.id ], fai ] }
         )
 
-        // Evaluate whether header has HISAT2 provenance
-        ch_checked_aln = CHECK_HISAT2_ALIGNMENT.out.evaluation
-        ch_hisat2_valid = ch_checked_aln.filter { _meta, _file, is_hisat2 -> is_hisat2.toString().trim() == 'true' }
+        // Evaluate whether alignment header has HISAT2 provenance and coordinate validity
+        ch_checked_aln = VALIDATE_RNASEQ_ALIGNMENT.out.evaluation
+        ch_hisat2_valid = ch_checked_aln.filter { _meta, _file, _idx, is_hisat2, is_coord ->
+            is_hisat2.toString().trim() == 'true' && is_coord.toString().trim() == 'true'
+        }
 
-        ch_aligned_merged_bam = ch_hisat2_valid.map { meta, aln_f, _res -> [ meta, aln_f ] }
-        ch_primary_bam = ch_hisat2_valid.map { _meta, aln_f, _res -> aln_f }
+        ch_aligned_merged_bam = ch_hisat2_valid.map { meta, aln_f, _idx, _res, _coord -> [ meta, aln_f ] }
+        ch_primary_bam = ch_hisat2_valid.map { _meta, aln_f, _idx, _res, _coord -> aln_f }
     }
 
     if (params.rnaseq_samplesheet) {
@@ -335,17 +349,24 @@ workflow {
             def raw_bams_arg = params.bams ?: params.bam
             def bam_file_list = raw_bams_arg.toString().contains(',')
                 ? raw_bams_arg.tokenize(',').collect { fstr -> file(fstr.trim(), checkIfExists: true) }
-                : file(raw_bams_arg, checkIfExists: true)
+                : [ file(raw_bams_arg, checkIfExists: true) ]
 
-            ch_sl_bams = (bam_file_list instanceof List ? channel.fromList(bam_file_list) : channel.fromPath(raw_bams_arg, checkIfExists: true))
+            def ch_raw_sl_bams = channel.fromList(bam_file_list)
                 .map { bfile ->
                     def meta = [ id: bfile.baseName.replaceAll('\\.slidr$', '').replaceAll('\\.sorted$', '') ]
-                    def bai = file("${bfile}.bai")
-                    if (!bai.exists()) {
-                        bai = file("${bfile.toString().replaceAll('\\.bam$', '')}.bai")
-                    }
+                    def bai = file("${bfile}.bai").exists() ? file("${bfile}.bai") :
+                             (file("${bfile.toString().replaceAll('\\.bam$', '')}.bai").exists() ? file("${bfile.toString().replaceAll('\\.bam$', '')}.bai") :
+                             (file("${bfile}.crai").exists() ? file("${bfile}.crai") : []))
                     [ meta, bfile, bai ]
                 }
+
+            def ch_sl_has_idx = ch_raw_sl_bams.filter { _m, _bam, idx -> idx != [] }
+            def ch_sl_needs_idx = ch_raw_sl_bams.filter { _m, _bam, idx -> idx == [] }.map { m, bam, _idx -> [ m, bam ] }
+
+            INDEX_SL_BAM(ch_sl_needs_idx)
+            def ch_sl_indexed = ch_sl_needs_idx.join(INDEX_SL_BAM.out.index).map { m, bam, idx -> [ m, bam, idx ] }
+
+            ch_sl_bams = ch_sl_has_idx.mix(ch_sl_indexed)
         }
 
         SPLICED_LEADER_DISCOVERY(
