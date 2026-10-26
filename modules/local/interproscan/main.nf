@@ -20,8 +20,8 @@ process INTERPROSCAN {
     def args = task.ext.args ?: '-f tsv,gff3,xml -iprlookup -goterms -pathways -pa -dp'
     prefix   = task.ext.prefix ?: "${meta.id}.iprscan"
     """
-    # 1. Sanitize input: Strip any trailing or internal '*' stop-codon characters
-    sed '/^[^>]/s/\\*//g' "${fasta}" > "${meta.id}.clean.fasta"
+    # 1. Sanitize input: Strip '*' and convert internal/frameshift '.' stop characters to 'X' (IUPAC valid)
+    sed '/^[^>]/ { s/\\*//g; s/\\./X/g; }' "${fasta}" > "${meta.id}.clean.fasta"
 
     # 2. Run InterProScan using container or local/shared installation
     IPR_EXEC="interproscan.sh"
