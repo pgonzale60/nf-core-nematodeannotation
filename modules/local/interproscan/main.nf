@@ -23,14 +23,18 @@ process INTERPROSCAN {
     # 1. Sanitize input: Strip any trailing or internal '*' stop-codon characters
     sed '/^[^>]/s/\\*//g' "${fasta}" > "${meta.id}.clean.fasta"
 
-    # 2. Run InterProScan using local/shared installation or container
-    export JAVA_HOME="\${JAVA_HOME:-/software/spack_environments/default/00/opt/spack/linux-ubuntu22.04-x86_64_v3/gcc-13.1.0/openjdk-17.0.8.1_1-6vvtdfa7tfqibhbzrromosql54do5y3j}"
-    export PATH="\${JAVA_HOME}/bin:\${PATH}"
+    # 2. Run InterProScan using container or local/shared installation
+    IPR_EXEC="interproscan.sh"
+    if [ -x "${ipr_dir}/interproscan.sh" ]; then
+        IPR_EXEC="${ipr_dir}/interproscan.sh"
+    elif [ -n "\${JAVA_HOME:-}" ]; then
+        export PATH="\${JAVA_HOME}/bin:\${PATH}"
+    fi
 
     mkdir -p tmp results
 
     # When multiple formats are requested (-f tsv,gff3,xml), InterProScan requires -b (output base name) instead of -o
-    "${ipr_dir}/interproscan.sh" \\
+    "\${IPR_EXEC}" \\
         -i "${meta.id}.clean.fasta" \\
         ${args} \\
         -cpu ${task.cpus} \\
