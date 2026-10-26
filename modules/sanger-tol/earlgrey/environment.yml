@@ -1,6 +1,0 @@
-name: earlgrey
-channels:
-  - conda-forge
-  - bioconda
-dependencies:
-  - bioconda::earlgrey=6.1.1

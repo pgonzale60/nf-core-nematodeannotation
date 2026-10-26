@@ -15,7 +15,7 @@ process SLIDR_EXTRACTTAILS {
     tuple val(meta), path("*.tails.fa.gz")          , emit: tails
     tuple val(meta), path("*.acceptor_sites.tsv.gz"), emit: sites
     tuple val(meta), path("*.tail_stats.json")      , emit: stats
-    tuple val("${task.process}"), val('slidr'), val('0.1.0'), topic: versions, emit: versions_slidr
+    tuple val("${task.process}"), val('python'), eval("python3 --version | sed 's/Python //'"), topic: versions, emit: versions_python
 
     when:
     task.ext.when == null || task.ext.when
@@ -27,7 +27,7 @@ process SLIDR_EXTRACTTAILS {
     def stranded = task.ext.strandedness ?: "0"
 
     """
-    # Tool: slidr_extract_tails.py | Script-SHA: be1b8c2b342f5d7f
+    # Tool: slidr_extract_tails.py | Script-SHA: b2f5da18cba26d5d
     slidr_extract_tails.py \\
         --bam "${bam}" \\
         --fasta "${fasta}" \\

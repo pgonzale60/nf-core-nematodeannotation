@@ -42,7 +42,7 @@ process SLIDR_SLRNAFILTER {
     tuple val(meta), path("${prefix}.candidate_sl_rnas.fa")  , emit: fasta
     tuple val(meta), path("${prefix}.sl_rna_candidates.tsv") , emit: tsv
     tuple val(meta), path("${prefix}.sl_rna_candidates.gff3"), emit: gff
-    tuple val("${task.process}"), val('slidr'), val('0.1.0'), topic: versions, emit: versions_slidr
+    tuple val("${task.process}"), val('python'), eval("python3 --version | sed 's/Python //'"), topic: versions, emit: versions_python
 
     when:
     task.ext.when == null || task.ext.when
@@ -56,7 +56,7 @@ process SLIDR_SLRNAFILTER {
     def overlap  = max_overlap ?: 10
 
     """
-    # Tool: slidr_filter_sl_rna.py | Script-SHA: e33294de7967a926
+    # Tool: slidr_filter_sl_rna.py | Script-SHA: c8eebd9deb16fdec
     slidr_filter_sl_rna.py \\
         --blast ${blast} \\
         --centroids ${centroids} \\

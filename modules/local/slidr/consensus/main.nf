@@ -49,7 +49,7 @@ process SLIDR_CONSENSUS {
     tuple val(meta), path("*_sl_summary.tsv")        , emit: summary
     tuple val(meta), path("*_sl_sequences.fa")       , emit: sl_fasta
     tuple val(meta), path("*_sl_site_pool.tsv")      , emit: site_pool
-    tuple val("${task.process}"), val('slidr'), val('0.1.0'), topic: versions, emit: versions_slidr
+    tuple val("${task.process}"), val('python'), eval("python3 --version | sed 's/Python //'"), topic: versions, emit: versions_python
 
     when:
     task.ext.when == null || task.ext.when
@@ -65,7 +65,7 @@ process SLIDR_CONSENSUS {
     def rfam_opt = rfam_gff ? "--rfam-gff ${rfam_gff}" : ""
 
     """
-    # Tool: slidr_consensus.py | Script-SHA: 785dbd24c215530d
+    # Tool: slidr_consensus.py | Script-SHA: 91ebac3ea90150f9
     slidr_consensus.py \\
         --sites ${sites} \\
         --readinfo ${readinfo} \\

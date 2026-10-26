@@ -57,7 +57,7 @@ import collections
 import gzip
 import os
 import sys
-from collections.abc import Iterator
+from typing import Dict, Iterator, List, Tuple
 
 
 def open_maybe_gzip(path: str):
@@ -65,7 +65,7 @@ def open_maybe_gzip(path: str):
     return gzip.open(path, "rt") if path.endswith(".gz") else open(path, "rt")
 
 
-def iter_tails(paths: list[str], min_len: int) -> Iterator[tuple[str, str]]:
+def iter_tails(paths: List[str], min_len: int) -> Iterator[Tuple[str, str]]:
     """
     Yield (read_id, tail_seq) for every usable tail.
 
@@ -105,9 +105,8 @@ def bucket_key(seq: str, key_len: int) -> str:
     return seq[-key_len:]
 
 
-def cluster_bucket(
-    entries: list[tuple[str, int]], key_len: int, min_parent_reads: int = 3
-) -> list[tuple[str, list[str]]]:
+def cluster_bucket(entries: List[Tuple[str, int]], key_len: int,
+                   min_parent_reads: int = 3) -> List[Tuple[str, List[str]]]:
     """
     Cluster one bucket of (unique_seq, abundance) by 3'-anchored exact-suffix
     identity, assembling shorter 3'-suffixes into their longer parent leaders.
@@ -125,7 +124,7 @@ def cluster_bucket(
     """
     # Sort length desc, then abundance desc
     ordered = sorted(entries, key=lambda e: (-len(e[0]), -e[1]))
-    pending: dict[str, int] = {seq: ab for seq, ab in ordered}
+    pending: Dict[str, int] = {seq: ab for seq, ab in ordered}
     clusters = []
 
     # Pass 1: Qualified parent leaders (>= min_parent_reads) absorb suffixes
@@ -137,7 +136,7 @@ def cluster_bucket(
         members = [seq]
         del pending[seq]
         for length in range(len(seq) - 1, key_len - 1, -1):
-            candidate = seq[len(seq) - length :]
+            candidate = seq[len(seq) - length:]
             if candidate in pending:
                 members.append(candidate)
                 del pending[candidate]
@@ -150,7 +149,7 @@ def cluster_bucket(
         members = [seq]
         del pending[seq]
         for length in range(len(seq) - 1, key_len - 1, -1):
-            candidate = seq[len(seq) - length :]
+            candidate = seq[len(seq) - length:]
             if candidate in pending:
                 members.append(candidate)
                 del pending[candidate]
@@ -159,24 +158,16 @@ def cluster_bucket(
     return clusters
 
 
+
 def main():
     ap = argparse.ArgumentParser(
         description="Dereplicate and 3'-anchored cluster SLIDR read tails "
-        "(dependency-free port of vsearch cluster_fast "
-        "--iddef 0 --rightjust)."
-    )
-    ap.add_argument(
-        "--tails",
-        required=True,
-        nargs="+",
-        help="One or more *.tails.fa.gz files from slidr_extract_tails.py",
-    )
-    ap.add_argument(
-        "--min-len",
-        type=int,
-        default=8,
-        help="Minimum tail length to retain (default: 8)",
-    )
+                    "(dependency-free port of vsearch cluster_fast "
+                    "--iddef 0 --rightjust).")
+    ap.add_argument("--tails", required=True, nargs="+",
+                    help="One or more *.tails.fa.gz files from slidr_extract_tails.py")
+    ap.add_argument("--min-len", type=int, default=8,
+                    help="Minimum tail length to retain (default: 8)")
     ap.add_argument("--prefix", default="slidr", help="Output file prefix")
     ap.add_argument("--outdir", default=".", help="Output directory")
     args = ap.parse_args()
@@ -190,34 +181,29 @@ def main():
     # ---- pass 1: dereplicate ------------------------------------------------
     # Only unique sequences are held in memory; the per-read association is
     # recovered by a second streaming pass below.
-    abundance: dict[str, int] = collections.Counter()
+    abundance: Dict[str, int] = collections.Counter()
     n_tails = 0
     for _read_id, seq in iter_tails(args.tails, args.min_len):
         abundance[seq] += 1
         n_tails += 1
 
-    print(
-        f"[slidr_cluster_tails] {n_tails:,} tails retained, {len(abundance):,} unique",
-        file=sys.stderr,
-    )
+    print(f"[slidr_cluster_tails] {n_tails:,} tails retained, "
+          f"{len(abundance):,} unique", file=sys.stderr)
     if not abundance:
-        print(
-            "[slidr_cluster_tails] FATAL: no tails passed the filters", file=sys.stderr
-        )
+        print("[slidr_cluster_tails] FATAL: no tails passed the filters",
+              file=sys.stderr)
         sys.exit(1)
     if n_tails == len(abundance):
-        print(
-            "[slidr_cluster_tails] NOTE: no duplicate tails; is --min-len appropriate?",
-            file=sys.stderr,
-        )
+        print("[slidr_cluster_tails] NOTE: no duplicate tails; "
+              "is --min-len appropriate?", file=sys.stderr)
 
     # ---- cluster ------------------------------------------------------------
-    buckets: dict[str, list[tuple[str, int]]] = collections.defaultdict(list)
+    buckets: Dict[str, List[Tuple[str, int]]] = collections.defaultdict(list)
     for seq, ab in abundance.items():
         buckets[bucket_key(seq, key_len)].append((seq, ab))
 
-    seq_to_centroid: dict[str, str] = {}
-    centroids: list[tuple[str, str, int]] = []  # (centroid_id, seq, reads)
+    seq_to_centroid: Dict[str, str] = {}
+    centroids: List[Tuple[str, str, int]] = []   # (centroid_id, seq, reads)
     for key in sorted(buckets):
         for centroid_seq, members in cluster_bucket(buckets[key], key_len):
             cid = f"centroid_{len(centroids) + 1}"
@@ -227,11 +213,8 @@ def main():
                 seq_to_centroid[member] = cid
 
     uniq_per_centroid = collections.Counter(seq_to_centroid.values())
-    print(
-        f"[slidr_cluster_tails] {len(centroids):,} clusters across "
-        f"{len(buckets):,} 3'-terminal buckets",
-        file=sys.stderr,
-    )
+    print(f"[slidr_cluster_tails] {len(centroids):,} clusters across "
+          f"{len(buckets):,} 3'-terminal buckets", file=sys.stderr)
 
     # ---- pass 2: emit read -> centroid -------------------------------------
     readinfo_path = os.path.join(args.outdir, f"{args.prefix}_readinfo.tsv.gz")
@@ -253,16 +236,16 @@ def main():
     with open(summary_path, "w") as out:
         out.write("centroid_id\tsequence\treads\tunique_tails\tlength\n")
         for cid, seq, total in centroids:
-            out.write(f"{cid}\t{seq}\t{total}\t{uniq_per_centroid[cid]}\t{len(seq)}\n")
+            out.write(f"{cid}\t{seq}\t{total}\t{uniq_per_centroid[cid]}\t"
+                      f"{len(seq)}\n")
 
-    print(
-        f"[slidr_cluster_tails] wrote {n_out:,} read->centroid assignments\n"
-        f"  centroids : {fasta_path}\n"
-        f"  summary   : {summary_path}\n"
-        f"  readinfo  : {readinfo_path}",
-        file=sys.stderr,
-    )
+    print(f"[slidr_cluster_tails] wrote {n_out:,} read->centroid assignments\n"
+          f"  centroids : {fasta_path}\n"
+          f"  summary   : {summary_path}\n"
+          f"  readinfo  : {readinfo_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":
     main()
+
+

@@ -14,18 +14,16 @@ import json
 import os
 import re
 import sys
-from collections.abc import Iterator
+from typing import Iterator, Optional
 
 try:
     import pysam
-
     HAS_PYSAM = True
 except ImportError:
     HAS_PYSAM = False
 
 
 REV_COMP_TABLE = str.maketrans("ACGTNacgtn", "TGCANtgcan")
-
 
 def revcomp(seq: str) -> str:
     """Return reverse complement of DNA sequence."""
@@ -34,7 +32,6 @@ def revcomp(seq: str) -> str:
 
 class FastaIndexedReader:
     """Fast indexed FASTA reader with fallback for systems without pysam."""
-
     def __init__(self, fasta_path: str):
         self.fasta_path = fasta_path
         self.fai_path = fasta_path + ".fai"
@@ -64,7 +61,8 @@ class FastaIndexedReader:
 
     def fetch(self, chrom: str, start: int, end: int) -> str:
         """Fetch 0-based [start, end) subsequence from chromosome."""
-        start = max(start, 0)
+        if start < 0:
+            start = 0
         if start >= end:
             return ""
 
@@ -78,7 +76,8 @@ class FastaIndexedReader:
             return ""
 
         chrom_len, offset, line_bases, line_bytes = self._index[chrom]
-        end = min(end, chrom_len)
+        if end > chrom_len:
+            end = chrom_len
         if start >= end:
             return ""
 
@@ -90,9 +89,7 @@ class FastaIndexedReader:
 
         total_bases = end - start
         # Read slightly more bytes to account for newlines
-        bytes_to_read = (
-            total_bases + ((start_col + total_bases) // line_bases + 1) * nl_len
-        )
+        bytes_to_read = total_bases + ((start_col + total_bases) // line_bases + 1) * nl_len
         self._file.seek(start_byte)
         chunk = self._file.read(bytes_to_read).decode("ascii", errors="replace")
         seq = "".join(chunk.split())[:total_bases]
@@ -105,7 +102,7 @@ class FastaIndexedReader:
             self._file.close()
 
 
-def parse_sam_line(line: str) -> dict | None:
+def parse_sam_line(line: str) -> Optional[dict]:
     """Parse a single SAM alignment line into a record dict."""
     if line.startswith("@"):
         return None
@@ -131,7 +128,6 @@ def parse_sam_line(line: str) -> dict | None:
 
 CIGAR_REGEX = re.compile(r"(\d+)([MIDNSHPX=])")
 
-
 def parse_cigar_tuples(cigar_str: str):
     """Parse CIGAR string into list of (op_char, length)."""
     return [(op, int(length)) for length, op in CIGAR_REGEX.findall(cigar_str)]
@@ -145,9 +141,9 @@ def extract_alignment_tails(
     cigar_str: str,
     seq: str,
     min_tail_len: int,
-    fa_reader: FastaIndexedReader | None,
-    strandedness: int = 0,
-) -> dict | None:
+    fa_reader: Optional[FastaIndexedReader],
+    strandedness: int = 0
+) -> Optional[dict]:
     """
     Evaluate if an alignment has a 5' soft clip representing an SL tail.
     Returns detail dict if valid, else None.
@@ -194,9 +190,7 @@ def extract_alignment_tails(
             clip_len = cigar_tuples[-1][1]
             if clip_len >= min_tail_len:
                 tail_seq = revcomp(seq[-clip_len:])
-                ref_len = sum(
-                    l for op, l in cigar_tuples if op in ("M", "D", "N", "=", "X")
-                )
+                ref_len = sum(l for op, l in cigar_tuples if op in ("M", "D", "N", "=", "X"))
                 junction_pos = pos + ref_len
                 strand = "+"
                 tail_type = "+3p"
@@ -211,9 +205,7 @@ def extract_alignment_tails(
             clip_len = cigar_tuples[-1][1]
             if clip_len >= min_tail_len:
                 tail_seq = revcomp(seq[-clip_len:])
-                ref_len = sum(
-                    l for op, l in cigar_tuples if op in ("M", "D", "N", "=", "X")
-                )
+                ref_len = sum(l for op, l in cigar_tuples if op in ("M", "D", "N", "=", "X"))
                 junction_pos = pos + ref_len - 2
                 strand = "-"
                 tail_type = "-5p"
@@ -236,12 +228,12 @@ def extract_alignment_tails(
         if strand == "+":
             # Preceding dinucleotide is [junction_pos - 2, junction_pos)
             genomic_dinuc = fa_reader.fetch(chrom, junction_pos - 2, junction_pos)
-            is_canonical_acceptor = genomic_dinuc == "AG"
+            is_canonical_acceptor = (genomic_dinuc == "AG")
         else:
             # On negative strand, preceding dinucleotide in transcript sense is [junction_pos, junction_pos + 2) on reference (+) strand
             raw_dinuc = fa_reader.fetch(chrom, junction_pos, junction_pos + 2)
             genomic_dinuc = revcomp(raw_dinuc)
-            is_canonical_acceptor = genomic_dinuc == "AG"
+            is_canonical_acceptor = (genomic_dinuc == "AG")
 
     return {
         "read_id": read_name,
@@ -281,11 +273,8 @@ def stream_bam_or_sam(bam_path: str) -> Iterator[dict]:
 
     # Fallback: invoke samtools view -h
     import subprocess
-
     cmd = ["samtools", "view", "-h", bam_path]
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert proc.stdout is not None
     for line in proc.stdout:
         rec = parse_sam_line(line)
@@ -301,19 +290,9 @@ def main():
     parser.add_argument("--bam", required=True, help="Input coordinate-sorted BAM file")
     parser.add_argument("--fasta", required=True, help="Reference assembly FASTA file")
     parser.add_argument("--prefix", default="slidr", help="Output filename prefix")
-    parser.add_argument(
-        "--min-tail-len",
-        type=int,
-        default=8,
-        help="Minimum tail length (default: 8 bp)",
-    )
-    parser.add_argument(
-        "--strandedness",
-        type=str,
-        default="0",
-        choices=["0", "1", "2", "auto"],
-        help="Strandedness (0=unstranded, 1=forward, 2=reverse, auto=infer; default: 0)",
-    )
+    parser.add_argument("--min-tail-len", type=int, default=8, help="Minimum tail length (default: 8 bp)")
+    parser.add_argument("--strandedness", type=str, default="0", choices=["0", "1", "2", "auto"],
+                        help="Strandedness (0=unstranded, 1=forward, 2=reverse, auto=infer; default: 0)")
     parser.add_argument("--outdir", default=".", help="Output directory")
 
     args = parser.parse_args()
@@ -333,22 +312,14 @@ def main():
     canonical_ag_count = 0
     unique_junctions = set()
 
-    with (
-        gzip.open(tails_fa_path, "wt") as fa_out,
-        gzip.open(sites_tsv_path, "wt") as tsv_out,
-    ):
+    with gzip.open(tails_fa_path, "wt") as fa_out, gzip.open(sites_tsv_path, "wt") as tsv_out:
         # TSV Header
-        tsv_out.write(
-            "read_id\tchrom\tjunction_pos_0based\tjunction_pos_1based\tstrand\ttail_type\tclip_len\ttail_seq\tgenomic_dinuc\tis_canonical_ag\n"
-        )
+        tsv_out.write("read_id\tchrom\tjunction_pos_0based\tjunction_pos_1based\tstrand\ttail_type\tclip_len\ttail_seq\tgenomic_dinuc\tis_canonical_ag\n")
 
         for rec in stream_bam_or_sam(args.bam):
             total_reads += 1
             if total_reads % 500000 == 0:
-                print(
-                    f"[slidr_extract_tails] Processed {total_reads:,} reads | {total_clipped:,} SL tails extracted ({canonical_ag_count:,} at AG)...",
-                    file=sys.stderr,
-                )
+                print(f"[slidr_extract_tails] Processed {total_reads:,} reads | {total_clipped:,} SL tails extracted ({canonical_ag_count:,} at AG)...", file=sys.stderr)
 
             res = extract_alignment_tails(
                 read_name=rec["qname"],
@@ -359,7 +330,7 @@ def main():
                 seq=rec["seq"],
                 min_tail_len=args.min_tail_len,
                 fa_reader=fa_reader,
-                strandedness=stranded,
+                strandedness=stranded
             )
 
             if res is not None:
@@ -387,9 +358,7 @@ def main():
         "total_processed_alignments": total_reads,
         "extracted_sl_tails": total_clipped,
         "canonical_ag_tails": canonical_ag_count,
-        "canonical_ag_percentage": round(
-            100.0 * canonical_ag_count / max(1, total_clipped), 2
-        ),
+        "canonical_ag_percentage": round(100.0 * canonical_ag_count / max(1, total_clipped), 2),
         "unique_junction_sites": len(unique_junctions),
         "min_tail_length": args.min_tail_len,
         "strandedness": args.strandedness,
@@ -398,10 +367,7 @@ def main():
     with open(stats_json_path, "w") as jf:
         json.dump(metrics, jf, indent=2)
 
-    print(
-        f"[slidr_extract_tails] Complete! Processed {total_reads:,} reads. Emitted {total_clipped:,} tails across {len(unique_junctions):,} unique sites ({canonical_ag_count:,} canonical AG, {metrics['canonical_ag_percentage']}%).",
-        file=sys.stderr,
-    )
+    print(f"[slidr_extract_tails] Complete! Processed {total_reads:,} reads. Emitted {total_clipped:,} tails across {len(unique_junctions):,} unique sites ({canonical_ag_count:,} canonical AG, {metrics['canonical_ag_percentage']}%).", file=sys.stderr)
 
 
 if __name__ == "__main__":
