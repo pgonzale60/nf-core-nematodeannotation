@@ -33,7 +33,28 @@ def run_busco_on_fasta(fasta_path, candidate_name, lineage, lineage_dir, cpus):
         "--offline"
     ]
     if lineage_dir:
-        cmd.extend(["--download_path", lineage_dir])
+        # BUSCO --download_path expects either <download_path>/lineages/<lineage>
+        # If user passed a directory containing <lineage> directly instead of lineages/<lineage>,
+        # accommodate both by checking and symlinking or pointing as appropriate.
+        resolved_download_path = os.path.abspath(lineage_dir)
+        direct_lineage_path = os.path.join(resolved_download_path, lineage)
+        nested_lineage_path = os.path.join(resolved_download_path, "lineages", lineage)
+
+        if not os.path.exists(nested_lineage_path) and os.path.exists(direct_lineage_path):
+            # The download directory directly contains <lineage>, not lineages/<lineage>.
+            # Create a local wrapper directory ./busco_lineages_wrapper/lineages/<lineage> via symlink
+            wrapper_dir = os.path.abspath("busco_lineages_wrapper")
+            wrapper_lineages = os.path.join(wrapper_dir, "lineages")
+            os.makedirs(wrapper_lineages, exist_ok=True)
+            target_link = os.path.join(wrapper_lineages, lineage)
+            if not os.path.exists(target_link):
+                try:
+                    os.symlink(direct_lineage_path, target_link)
+                except OSError:
+                    pass
+            resolved_download_path = wrapper_dir
+
+        cmd.extend(["--download_path", resolved_download_path])
 
     print(f"=== Running BUSCO on {candidate_name} ({fasta_path}) ===")
     try:
@@ -68,10 +89,11 @@ def run_busco_on_fasta(fasta_path, candidate_name, lineage, lineage_dir, cpus):
                     summary_str = m_simple.group(0)
 
     # Clean intermediate files to save inodes
-    for item in os.listdir(out_prefix):
-        item_path = os.path.join(out_prefix, item)
-        if os.path.isdir(item_path):
-            shutil.rmtree(item_path, ignore_errors=True)
+    if os.path.exists(out_prefix):
+        for item in os.listdir(out_prefix):
+            item_path = os.path.join(out_prefix, item)
+            if os.path.isdir(item_path):
+                shutil.rmtree(item_path, ignore_errors=True)
 
     return completeness, summary_str
 

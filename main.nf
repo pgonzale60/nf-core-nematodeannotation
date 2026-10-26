@@ -168,7 +168,22 @@ workflow {
         }
     }
 
-    // 5. Functional Annotation (InterProScan)
+    // 5. BUSCO Lineage & Offline Directory Structure Validation
+    if (!params.skip_gene_prediction && !params.representative_gtf && params.busco_lineages_path) {
+        def busco_dir = file(params.busco_lineages_path)
+        if (!busco_dir.exists() || !busco_dir.isDirectory()) {
+            validation_errors.add("BUSCO lineages path does not exist or is not a directory: ${params.busco_lineages_path}")
+        } else {
+            def target_lineage = params.busco_lineage ?: 'chromadorea_odb12'
+            def nested_path = file("${params.busco_lineages_path}/lineages/${target_lineage}")
+            def direct_path = file("${params.busco_lineages_path}/${target_lineage}")
+            if (!nested_path.exists() && !direct_path.exists()) {
+                validation_errors.add("BUSCO lineage '${target_lineage}' was not found in '${params.busco_lineages_path}'. Expected '${nested_path}' or '${direct_path}'.")
+            }
+        }
+    }
+
+    // 6. Functional Annotation (InterProScan)
     if (!params.skip_functional_annotation && !params.interproscan_tsv && !params.interproscan_dir) {
         log.warn "[PRE-RUN GATE] --interproscan_dir not specified; functional annotation with InterProScan will be skipped."
     }
