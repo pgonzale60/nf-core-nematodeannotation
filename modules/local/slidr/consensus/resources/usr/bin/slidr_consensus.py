@@ -308,6 +308,45 @@ def cluster_consensus(tails: List[str]) -> Tuple[str, int]:
     return masked, cutoff
 
 
+def is_adapter_contaminated(seq: str) -> bool:
+    """Check if sequence contains common Illumina/sequencing adapter artifacts."""
+    seq_up = seq.upper()
+    adapter_patterns = [
+        r"AGATCGGAAG",
+        r"GATCGGAAG",
+        r"TCGGAAGAG",
+        r"CTGTCTCTTATA",
+        r"TGGAATTCTCGG",
+    ]
+    for pat in adapter_patterns:
+        if re.search(pat, seq_up):
+            return True
+    return False
+
+
+def classify_sl_family(seq: str) -> str:
+    """
+    Classify spliced leader sequence into biological families based on 3' conserved core motif.
+    Mirrors validated empirical benchmarks across nematode taxa:
+      - SL1_canonical: Nematode SL1 (e.g. GGTTTAATTACCCAAGTTTG / AATTACCCAAGT...)
+      - SL2_canonical_like: Classical SL2 (e.g. GGTTTTAACCCAGTTACTCA / GGTTTTTACCCAGTATCTCA)
+      - SL_operon_variant: Clade-specific operon leaders (e.g. ...[AT]AGAGTTTTTG$ / ...GATTTTTTG$)
+      - PolyA_PolyT_artifact: Homopolymer soft-clip artifacts
+      - Other_minor: Heterogeneous / novel leader candidates
+    """
+    seq_up = seq.upper()
+    if "AATTACCCAAGTTTG" in seq_up or "AATTACCCAAGTTAG" in seq_up or "TTACCCAAGTTTG" in seq_up:
+        return "SL1_canonical"
+    elif "TTACCCAGTATCTCA" in seq_up or "AACCCAGT" in seq_up or "TTACCCAGT" in seq_up or "AACCCAAACTT" in seq_up:
+        return "SL2_canonical_like"
+    elif re.search(r"[AT]AGAGTTTTTG$", seq_up) or re.search(r"GATTTTTTG$", seq_up):
+        return "SL_operon_variant"
+    elif re.search(r"T{8,}[GATC]?$", seq_up) or re.search(r"A{8,}[GATC]?$", seq_up):
+        return "PolyA_PolyT_artifact"
+    else:
+        return "Other_minor"
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Resolve consensus spliced leaders and trans-splice acceptor "
@@ -322,6 +361,8 @@ def main():
                     help="Acceptor site pattern, regex (default: AG)")
     ap.add_argument("--min-support", type=int, default=5,
                     help="Minimum supporting reads per reported acceptor site (default: 5)")
+    ap.add_argument("--consolidation-len", type=int, default=15,
+                    help="Length of 3'-terminal k-mer to consolidate fragmented centroids sharing a leader (default: 15, 0 to disable)")
     ap.add_argument("--max-leader-gene-distance", type=int, default=1000,
                     help="Discard sites within this many bp of their own leader RNA "
                          "gene, i.e. the leader array's own transcripts (default: 1000)")
@@ -407,24 +448,111 @@ def main():
             leader_loci[key].add((locus["chrom"], locus["start"], locus["end"],
                                   locus["strand"]))
 
+    # ---- consolidate fragmented centroids -----------------------------------
+    # Tail clustering (SLIDR_CLUSTERTAILS) only merges exact 3'-suffixes.
+    # Reads with variable 5' Illumina adapter remnants (e.g. AGATCGGAAGAGCACACGT...)
+    # or variable 5' degradation split a single biological leader (e.g. SL1) into
+    # hundreds of distinct centroids. Consolidating centroids that share an identical
+    # 3'-terminal 15-mer prior to abundance ranking prevents pseudo-leader fragmentation
+    # and restores accurate rank ordering.
+    candidate_consensus = {}
+    candidate_cutoffs = {}
+    for key in leader_sites:
+        tails_sorted = sorted(leader_tails[key], key=len)
+        cons, cut = cluster_consensus(tails_sorted)
+        candidate_consensus[key] = cons
+        candidate_cutoffs[key] = cut
+
+    if args.consolidation_len > 0:
+        kmer_groups = collections.defaultdict(list)
+        short_centroids = []
+
+        for key, cons in candidate_consensus.items():
+            if len(cons) >= args.consolidation_len:
+                kmer = cons[-args.consolidation_len:].upper()
+                kmer_groups[kmer].append(key)
+            else:
+                short_centroids.append((key, cons.upper()))
+
+        # Suffix matching for short centroids (< consolidation_len nt)
+        for key, short_seq in short_centroids:
+            matched_kmer = None
+            best_reads = -1
+            for kmer, members in kmer_groups.items():
+                if kmer.endswith(short_seq):
+                    kmer_reads = sum(len(leader_reads[m]) for m in members)
+                    if kmer_reads > best_reads:
+                        best_reads = kmer_reads
+                        matched_kmer = kmer
+            if matched_kmer is not None:
+                kmer_groups[matched_kmer].append(key)
+            else:
+                kmer_groups[short_seq].append(key)
+
+        centroid_groups = list(kmer_groups.values())
+    else:
+        centroid_groups = [[k] for k in leader_sites]
+
     reportable = []
-    for key, site_counts in leader_sites.items():
-        n_reads = len(leader_reads[key])
-        strong = {s: c for s, c in site_counts.items() if c >= args.min_support}
+    for members in centroid_groups:
+        group_reads = set.union(*(leader_reads[m] for m in members))
+        group_tails = set.union(*(leader_tails[m] for m in members))
+        group_loci = sorted(set.union(*(leader_loci[m] for m in members)))
+
+        group_sites = collections.Counter()
+        for m in members:
+            for s, c in leader_sites[m].items():
+                group_sites[s] += c
+
+        n_reads = len(group_reads)
+        strong = {s: c for s, c in group_sites.items() if c >= args.min_support}
+
         # Mirror the tested rule: a leader must be supported by more than one read
         # and used at more than one independent site, otherwise it is more likely
         # a fragment or a pseudogene than a real leader.
         if n_reads < args.min_support or len(strong) < 2:
             continue
-        consensus, cutoff = cluster_consensus(sorted(leader_tails[key], key=len))
+
+        # Primary anchor: prefer non-adapter centroids, then highest read count, then longest
+        members_by_reads = sorted(
+            members,
+            key=lambda m: (
+                not is_adapter_contaminated(candidate_consensus[m]),
+                len(leader_reads[m]),
+                len(candidate_consensus[m])
+            ),
+            reverse=True
+        )
+        best_m = members_by_reads[0]
+        top_consensus = candidate_consensus[best_m]
+        top_cutoff = candidate_cutoffs[best_m]
+
+        # Extend if a longer non-adapter member with substantial support (>= 10% reads of top)
+        # cleanly contains top_consensus as a 3' suffix:
+        chosen_consensus = top_consensus
+        chosen_cutoff = top_cutoff
+        for m in members_by_reads:
+            if len(leader_reads[m]) < 0.10 * len(leader_reads[best_m]):
+                break
+            cons_m = candidate_consensus[m]
+            if is_adapter_contaminated(cons_m):
+                continue
+            if len(cons_m) > len(chosen_consensus) and cons_m.upper().endswith(top_consensus.upper()):
+                chosen_consensus = cons_m
+                chosen_cutoff = candidate_cutoffs[m]
+
+        family = classify_sl_family(chosen_consensus)
+
         reportable.append({
-            "key": key,
-            "consensus": consensus,
-            "cutoff": cutoff,
+            "key": best_m,
+            "members": members,
+            "consensus": chosen_consensus,
+            "cutoff": chosen_cutoff,
             "reads": n_reads,
             "sites": len(strong),
             "site_counts": strong,
-            "loci": sorted(leader_loci[key]),
+            "loci": group_loci,
+            "family": family,
         })
 
     if not reportable:
@@ -453,6 +581,7 @@ def main():
                   "called de novo by SLIDR\n")
         for rec in reportable:
             name = rec["name"]
+            fam = rec["family"]
             rfam_note = f";Rfam_Validation={','.join(rec['rfam_hits'])}" if rec.get("rfam_hits") else ""
             for (chrom, pos, strand), count in sorted(
                     rec["site_counts"].items(), key=lambda kv: (kv[0][0], kv[0][1])):
@@ -460,33 +589,33 @@ def main():
                 # BED6: chromStart is 0-based and chromEnd exclusive, so the
                 # junction base at 1-based `pos` becomes [pos-1, pos). The
                 # acceptor dinucleotide itself occupies pos-2..pos-1.
-                bed.write(f"{chrom}\t{pos - 1}\t{pos}\t{name}:{count}\t{count}\t"
+                bed.write(f"{chrom}\t{pos - 1}\t{pos}\t{name}:{count}:{fam}\t{count}\t"
                           f"{strand}\n")
                 gff.write(f"{chrom}\tSLIDR\ttrans_splice_acceptor_site\t{pos}\t{pos}\t"
                           f"{count}\t{strand}\t.\tID={name}.trans-splice-site-"
-                          f"{total_sites};Name={name};Reads={count}{rfam_note}\n")
+                          f"{total_sites};Name={name};Family={fam};Reads={count}{rfam_note}\n")
             for lidx, (chrom, start, end, strand) in enumerate(rec["loci"], 1):
                 gff.write(f"{chrom}\tSLIDR\tspliced_leader_RNA\t{start}\t{end}\t.\t"
-                          f"{strand}\t.\tID={name}.leader-RNA-{lidx};Name={name}{rfam_note}\n")
+                          f"{strand}\t.\tID={name}.leader-RNA-{lidx};Name={name};Family={fam}{rfam_note}\n")
 
     with open(sum_path, "w") as out:
         out.write("sl_name\tconsensus\tlength\treads\tacceptor_sites\t"
-                  "leader_RNA_genes\trfam_validation\n")
+                  "leader_RNA_genes\tfamily\trfam_validation\n")
         for rec in reportable:
             rfam_val = ",".join(rec.get("rfam_hits", [])) or "None"
             out.write(f"{rec['name']}\t{rec['consensus']}\t{len(rec['consensus'])}\t"
-                      f"{rec['reads']}\t{rec['sites']}\t{len(rec['loci'])}\t{rfam_val}\n")
+                      f"{rec['reads']}\t{rec['sites']}\t{len(rec['loci'])}\t{rec['family']}\t{rfam_val}\n")
 
     with open(fa_path, "w") as out:
         for rec in reportable:
-            out.write(f">{rec['name']} reads={rec['reads']} sites={rec['sites']}\n"
+            out.write(f">{rec['name']} reads={rec['reads']} sites={rec['sites']} family={rec['family']}\n"
                       f"{rec['consensus']}\n")
 
-    print(f"[slidr_consensus] {len(reportable)} leaders, {total_sites} acceptor sites "
+    print(f"[slidr_consensus] Consolidated into {len(reportable)} leaders, {total_sites} acceptor sites "
           f"with >= {args.min_support} supporting reads", file=sys.stderr)
     for rec in reportable[:10]:
         rfam_desc = f" [{','.join(rec.get('rfam_hits', []))}]" if rec.get("rfam_hits") else ""
-        print(f"    {rec['name']:<6} reads={rec['reads']:<9} sites={rec['sites']:<7} "
+        print(f"    {rec['name']:<6} ({rec['family']:<18}) reads={rec['reads']:<9} sites={rec['sites']:<7} "
               f"len={len(rec['consensus']):<4} {rec['consensus']}{rfam_desc}", file=sys.stderr)
 def load_rfam_sl_loci(path: Optional[str]) -> List[dict]:
     """
