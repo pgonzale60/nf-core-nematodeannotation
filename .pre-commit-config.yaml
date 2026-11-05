@@ -41,7 +41,9 @@ repos:
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
+        exclude: '^modules/'
       - id: ruff-format
+        exclude: '^modules/'
   - repo: https://github.com/seqeralabs/nf-lint-pre-commit
     rev: v0.3.0
     hooks:
@@ -61,6 +63,12 @@ repos:
         entry: python3 scripts/stamp_module_shas.py --pre-commit
         language: system
         files: 'modules/.*/resources/usr/(bin|lib)/.*\.py$'
+        pass_filenames: false
+      - id: extract-code-contracts
+        name: Extract Nextflow topology and Python AST code contracts into docs/CODE_CONTRACTS.md
+        entry: python3 scripts/extract_code_contracts.py --pre-commit
+        language: system
+        files: '(\.nf|\.py|assets/schemas/.*\.json)$'
         pass_filenames: false
       - id: block-pipeline-outdir
         name: Prevent committing output from pipeline test runs to the pipeline code itself

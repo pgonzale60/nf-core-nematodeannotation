@@ -44,6 +44,6 @@ process SATELLITEFILTER {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}_filtered_units.fa
-    touch ${prefix}_trf_summary.tsv
+    printf "seq_id\\tstart\\tend\\tperiod\\tcopies\\tpct_matches\\tscore\\tconsensus_len\\tconsensus_seq\\n" > ${prefix}_trf_summary.tsv
     """
 }

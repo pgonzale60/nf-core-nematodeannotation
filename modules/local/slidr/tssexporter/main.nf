@@ -48,6 +48,6 @@ process SLIDR_TSSEXPORTER {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}.tss.gff3
-    touch ${prefix}.tss_metrics.tsv
+    printf "metric\\tcount\\n" > ${prefix}.tss_metrics.tsv
     """
 }

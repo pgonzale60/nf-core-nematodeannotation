@@ -74,7 +74,7 @@ process SLIDR_SLRNAFILTER {
     prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}.candidate_sl_rnas.fa
-    touch ${prefix}.sl_rna_candidates.tsv
+    printf "centroid_id\\tchrom\\tsl_start\\tsl_end\\tstrand\\tsl_seq\\tdonor_motif\\tsm_motif\\tsl_rna_seq\\n" > ${prefix}.sl_rna_candidates.tsv
     touch ${prefix}.sl_rna_candidates.gff3
     """
 }

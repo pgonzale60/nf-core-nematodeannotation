@@ -54,6 +54,6 @@ process SELECTBESTMODEL {
     """
     touch "${prefix}.gtf"
     touch "${prefix}.aa"
-    touch "${prefix}_decision.tsv"
+    printf "Rank\\tCandidate\\tBUSCO_Complete_Pct\\tSummary\\tStatus\\tGTF_Path\\tAA_Path\\n" > "${prefix}_decision.tsv"
     """
 }

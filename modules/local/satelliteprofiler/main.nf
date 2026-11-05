@@ -42,7 +42,7 @@ process SATELLITEPROFILER {
     """
     touch ${prefix}_satellite_arrays.gff3
     touch ${prefix}_satellite_monomers.gff3
-    touch ${prefix}_satellite_families.tsv
+    printf "family_id\\tcentroid_id\\tmonomer_length_bp\\tgc_percent\\ttotal_coverage_bp\\tcopy_count\\tarray_count\\n" > ${prefix}_satellite_families.tsv
     touch ${prefix}_satellite_monomers.fasta
     """
 }

@@ -50,6 +50,6 @@ process SLOPPR_OPERONS {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}_predicted_operons.gff3
-    touch ${prefix}_operons_summary.tsv
+    printf "operon_id\\tchrom\\tstrand\\tstart\\tend\\tnum_cistrons\\tcistron_ids\\n" > ${prefix}_operons_summary.tsv
     """
 }
