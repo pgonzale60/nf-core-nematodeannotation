@@ -125,10 +125,12 @@ process EARLGREY {
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    mkdir -p "${prefix}_EarlGrey"
-    touch "${prefix}_EarlGrey/${prefix}_filteredRepeats.softmasked.fasta"
-    touch "${prefix}_EarlGrey/${prefix}_filteredRepeats.gff3"
-    touch "${prefix}_EarlGrey/${prefix}_filteredRepeats.bed"
-    touch "${prefix}_EarlGrey/${prefix}_summary.txt"
+    mkdir -p "${prefix}_EarlGrey/${prefix}_summaryFiles"
+    touch "${prefix}_EarlGrey/${prefix}_summaryFiles/${prefix}.softmasked.fasta"
+    touch "${prefix}_EarlGrey/${prefix}_summaryFiles/${prefix}.filteredRepeats.gff3"
+    touch "${prefix}_EarlGrey/${prefix}_summaryFiles/${prefix}.filteredRepeats.bed"
+    touch "${prefix}_EarlGrey/${prefix}_summaryFiles/${prefix}.highLevelCount.txt"
+    touch "${prefix}_EarlGrey/${prefix}_summaryFiles/${prefix}_combined_library.fasta"
+    touch "${prefix}_EarlGrey/${prefix}_summaryFiles/${prefix}_divergence_summary_table.tsv"
     """
 }
