@@ -401,6 +401,7 @@ workflow {
     ch_representative_gtf = channel.empty()
     ch_representative_faa = channel.empty()
     ch_representative_fna = channel.empty()
+    ch_representative_busco_full_table = channel.empty()
 
     if (params.representative_gtf) {
         file_rep_gtf = file(params.representative_gtf, checkIfExists: true)
@@ -495,6 +496,7 @@ workflow {
         ch_representative_gtf = GENE_PREDICTION.out.representative_gtf
         ch_representative_faa = GENE_PREDICTION.out.representative_faa
         ch_representative_fna = GENE_PREDICTION.out.representative_fna
+        ch_representative_busco_full_table = GENE_PREDICTION.out.representative_busco_full_table
 
         // -------------------------------------------------------------------
         // Stage 6: Functional Annotation (InterProScan)
