@@ -10,12 +10,13 @@ process SELECTBESTMODEL {
     input:
     tuple val(meta), val(labels), path(gtfs), path(aas)
     val val_busco_lineage
-    path busco_lineages_path
+    val busco_lineages_path
 
     output:
-    tuple val(meta), path("${prefix}.gtf"),          emit: representative_gtf
-    tuple val(meta), path("${prefix}.aa"),           emit: representative_aa
-    tuple val(meta), path("${prefix}_decision.tsv"), emit: decision_tsv
+    tuple val(meta), path("${prefix}.gtf"),                   emit: representative_gtf
+    tuple val(meta), path("${prefix}.aa"),                    emit: representative_aa
+    tuple val(meta), path("${prefix}_decision.tsv"),          emit: decision_tsv
+    tuple val(meta), path("${prefix}_busco_full_table.tsv"),  emit: representative_busco_full_table
     tuple val("${task.process}"), val('python'), eval("python3 --version | sed 's/Python //'"), topic: versions, emit: versions_python
 
     when:
@@ -33,7 +34,7 @@ process SELECTBESTMODEL {
     }
     def cand_str = cand_args.join(' ')
     """
-    # Tool: select_best_annotation.py | Script-SHA: da8827d88a05b663
+    # Tool: select_best_annotation.py | Script-SHA: 888863fc34477fe4
     # Fix Augustus environment variables for Apptainer if present
     ENV_AUGUSTUS=/opt/conda/etc/conda/activate.d/augustus.sh
     if [ -f "\$ENV_AUGUSTUS" ]; then
@@ -54,6 +55,7 @@ process SELECTBESTMODEL {
     """
     touch "${prefix}.gtf"
     touch "${prefix}.aa"
-    touch "${prefix}_decision.tsv"
+    printf "Rank\\tCandidate\\tBUSCO_Complete_Pct\\tSummary\\tStatus\\tGTF_Path\\tAA_Path\\n" > "${prefix}_decision.tsv"
+    touch "${prefix}_busco_full_table.tsv"
     """
 }

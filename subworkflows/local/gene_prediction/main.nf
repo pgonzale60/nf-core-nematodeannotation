@@ -151,6 +151,7 @@ workflow GENE_PREDICTION {
 
     ch_tournament_input = ch_cand_braker
         .mix(ch_cand_augustus, ch_cand_genemark, ch_cand_helixer, ch_cand_tsebra)
+        .filter { id, meta, label, gtf, aa -> gtf && aa && gtf != [] && aa != [] }
         .groupTuple(by: 0)
         .map { id, metas, labels, gtfs, aas ->
             [ metas[0], labels, gtfs, aas ]
@@ -189,9 +190,10 @@ workflow GENE_PREDICTION {
     )
 
     emit:
-    representative_gtf        = SELECTBESTMODEL.out.representative_gtf
-    representative_faa        = GFFREAD_REPRESENTATIVE_FAA.out.aa
-    representative_fna        = GFFREAD_REPRESENTATIVE_FNA.out.cds
-    representative_tsv        = SELECTBESTMODEL.out.decision_tsv
-    suboptimal_models_archive = ARCHIVE_SUBOPTIMAL_MODELS.out.archive
+    representative_gtf              = SELECTBESTMODEL.out.representative_gtf
+    representative_faa              = GFFREAD_REPRESENTATIVE_FAA.out.aa
+    representative_fna              = GFFREAD_REPRESENTATIVE_FNA.out.cds
+    representative_tsv              = SELECTBESTMODEL.out.decision_tsv
+    representative_busco_full_table = SELECTBESTMODEL.out.representative_busco_full_table
+    suboptimal_models_archive       = ARCHIVE_SUBOPTIMAL_MODELS.out.archive
 }

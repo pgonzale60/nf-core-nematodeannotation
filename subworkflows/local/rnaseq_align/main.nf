@@ -10,6 +10,17 @@ include { SAMTOOLS_INDEX                                                  } from
 include { SAMTOOLS_MERGE                                                  } from '../../../modules/local/samtools/merge/main'
 include { SAMTOOLS_COLLATEFASTQ                                           } from '../../../modules/nf-core/samtools/collatefastq/main'
 
+def resolve_path(p) {
+    if (!p) return null
+    def f = file(p)
+    if (f.exists()) return f
+    if (params.rnaseq_samplesheet) {
+        def rel = file("${file(params.rnaseq_samplesheet).parent}/${p}")
+        if (rel.exists()) return rel
+    }
+    return file(p, checkIfExists: true)
+}
+
 workflow RNASEQ_ALIGN {
     take:
     ch_assembly       // channel: [ val(meta), path(fasta) ]
@@ -33,7 +44,7 @@ workflow RNASEQ_ALIGN {
         .filter { row -> row.cram && !row.fastq_1 && !row.bam }
         .map { row ->
             def meta = [ id: row.sample, single_end: false ]
-            [ meta, file(row.cram, checkIfExists: true) ]
+            [ meta, resolve_path(row.cram) ]
         }
 
     ch_fastq_direct = ch_rows
@@ -41,8 +52,8 @@ workflow RNASEQ_ALIGN {
         .map { row ->
             def single_end = row.fastq_2 ? false : true
             def meta = [ id: row.sample, single_end: single_end ]
-            def reads = single_end ? [ file(row.fastq_1, checkIfExists: true) ] :
-                                     [ file(row.fastq_1, checkIfExists: true), file(row.fastq_2, checkIfExists: true) ]
+            def reads = single_end ? [ resolve_path(row.fastq_1) ] :
+                                     [ resolve_path(row.fastq_1), resolve_path(row.fastq_2) ]
             [ meta, reads ]
         }
 
@@ -50,8 +61,8 @@ workflow RNASEQ_ALIGN {
         .filter { row -> row.bam }
         .map { row ->
             def meta = [ id: row.sample ]
-            def bam = file(row.bam, checkIfExists: true)
-            def bai = row.bai ? file(row.bai, checkIfExists: true) : file("${row.bam}.bai", checkIfExists: true)
+            def bam = resolve_path(row.bam)
+            def bai = row.bai ? resolve_path(row.bai) : (file("${bam}.bai").exists() ? file("${bam}.bai") : resolve_path("${row.bam}.bai"))
             [ meta, bam, bai ]
         }
 

@@ -36,7 +36,7 @@ process SLOPPR_OPERONS {
     def max_dist = max_intercistronic_dist ?: 1000
 
     """
-    # Tool: sloppr_operons.py | Script-SHA: b8737da9eb2cd1ae
+    # Tool: sloppr_operons.py | Script-SHA: 2aeb06a141ddec81
     sloppr_operons.py \\
         --bed "${bed}" \\
         ${gff_arg} \\
@@ -50,6 +50,6 @@ process SLOPPR_OPERONS {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}_predicted_operons.gff3
-    touch ${prefix}_operons_summary.tsv
+    printf "operon_id\\tchrom\\tstrand\\tstart\\tend\\tnum_cistrons\\tcistron_ids\\n" > ${prefix}_operons_summary.tsv
     """
 }

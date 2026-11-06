@@ -27,9 +27,9 @@ process BRAKER3 {
     tuple val(meta), path("$prefix/braker.gff3")                    , emit: gff3        , optional: true
     tuple val(meta), path("$prefix/what-to-cite.txt")               , emit: citations
     tuple val("${task.process}"), val('braker3'), eval("braker.pl --version 2>/dev/null | sed 's/braker.pl version //'"), emit: versions_braker3, topic: versions
-    tuple val("${task.process}"), val('augustus'), eval("augustus --version |& sed -n 's/AUGUSTUS (\\(.*\\)) is a gene .*/\\1/p'"), emit: versions_augustus, topic: versions
-    tuple val("${task.process}"), val('genemark-etp'), eval("gmetp.pl |& sed -n 's/ETP version \\(.*\\)/\\1/p'"), emit: versions_genemarketp, topic: versions
-    tuple val("${task.process}"), val('prothint'), eval("prothint.py --version |& sed 's/prothint.py //1'"), emit: versions_prothint, topic: versions
+    tuple val("${task.process}"), val('augustus'), eval("augustus --version 2>&1 | sed -n 's/AUGUSTUS (\\(.*\\)) is a gene .*/\\1/p'"), emit: versions_augustus, topic: versions
+    tuple val("${task.process}"), val('genemark-etp'), eval("gmetp.pl 2>&1 | sed -n 's/ETP version \\(.*\\)/\\1/p'"), emit: versions_genemarketp, topic: versions
+    tuple val("${task.process}"), val('prothint'), eval("prothint.py --version 2>&1 | sed 's/prothint.py //1'"), emit: versions_prothint, topic: versions
 
     when:
     task.ext.when == null || task.ext.when
@@ -125,17 +125,18 @@ process BRAKER3 {
     stub:
     def args        = task.ext.args                         ?: ''
     prefix          = task.ext.prefix                       ?: "${meta.id}"
-    def rna_ids     = rnaseq_sets_ids                       ? "--rnaseq_sets_ids=$rnaseq_sets_ids"      : ''
-    def hints       = hintsfile                             ? "--hints=$hintsfile"                      : ''
-    def touch_hints = (rna_ids || bam || proteins || hints) ? "touch $prefix/hintsfile.gff"             : ''
-    def touch_gff   = args.contains('--gff3')               ? "touch $prefix/braker.gff3"               : ''
+    def touch_gff   = args.contains('--gff3')               ? "touch $prefix/braker.gff3" : ''
     """
-    mkdir "$prefix"
+    mkdir -p "$prefix/Augustus"
+    mkdir -p "$prefix/GeneMark-ETP"
 
     touch "$prefix/braker.gtf"
     touch "$prefix/braker.codingseq"
     touch "$prefix/braker.aa"
-    $touch_hints
+    touch "$prefix/hintsfile.gff"
+    touch "$prefix/Augustus/augustus.hints.gtf"
+    touch "$prefix/Augustus/augustus.hints.aa"
+    touch "$prefix/GeneMark-ETP/genemark.gtf"
     touch "$prefix/braker.log"
     touch "$prefix/what-to-cite.txt"
     $touch_gff
