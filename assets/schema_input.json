@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/pgonzale60/nf-core-nematodeannotation/main/assets/schema_input.json",
     "title": "nf-core/nematodeannotation - params.rnaseq_samplesheet schema",
-    "description": "Schema for RNA-seq samplesheet (CSV format) providing raw CRAMs, FASTQs, or pre-aligned BAMs.",
+    "description": "Schema for RNA-seq samplesheet (CSV format) providing raw CRAMs, pre-aligned CRAMs, FASTQs, or pre-aligned BAMs.",
     "type": "array",
     "items": {
         "type": "object",
@@ -26,6 +26,20 @@
                 "exists": true,
                 "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.(cram\\.crai|crai)$",
                 "errorMessage": "CRAM index file must have extension '.crai' or '.cram.crai'."
+            },
+            "aligned_cram": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.cram$",
+                "errorMessage": "Pre-aligned CRAM file must have extension '.cram' and point to an existing file."
+            },
+            "aligned_crai": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.(cram\\.crai|crai)$",
+                "errorMessage": "Pre-aligned CRAM index file must have extension '.crai' or '.cram.crai'."
             },
             "fastq_1": {
                 "type": "string",
@@ -54,11 +68,21 @@
                 "exists": true,
                 "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.(bam\\.bai|bai)$",
                 "errorMessage": "BAM index file must have extension '.bai' or '.bam.bai'."
+            },
+            "single_end": {
+                "type": "boolean",
+                "errorMessage": "single_end must be true or false."
+            },
+            "strandedness": {
+                "type": "string",
+                "enum": ["unstranded", "forward", "reverse", "auto"],
+                "errorMessage": "strandedness must be one of: unstranded, forward, reverse, auto."
             }
         },
         "required": ["sample"],
         "anyOf": [
             { "required": ["cram"] },
+            { "required": ["aligned_cram"] },
             { "required": ["fastq_1"] },
             { "required": ["bam"] }
         ]

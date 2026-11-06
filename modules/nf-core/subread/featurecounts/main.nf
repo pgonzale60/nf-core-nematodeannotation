@@ -19,9 +19,23 @@ process SUBREAD_FEATURECOUNTS {
     task.ext.when == null || task.ext.when
 
     script:
-    def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
-    def paired_end = meta.single_end ? '' : '-p'
+    def raw_args   = task.ext.args ?: ''
+    def prefix     = task.ext.prefix ?: "${meta.id}"
+    def bam_inputs = bams instanceof List ? bams.join(' ') : "${bams}"
+
+    // Normalize -t exon,CDS to single valid feature type (-t exon)
+    def clean_args = raw_args.replaceAll(/-t\s+exon,CDS\b/, '-t exon')
+
+    // Clean redundant -s flag from ext.args if present to prioritize meta.strandedness
+    clean_args = clean_args.replaceAll(/(?:^|\s)-s\s*\d+(?:\s|$)/, ' ').trim()
+
+    // Normalize paired-end / single-end flags
+    def is_single_end = meta.single_end ? true : false
+    if (is_single_end) {
+        clean_args = clean_args.replaceAll(/(?:^|\s)-p(?:\s|$)/, ' ').trim()
+    }
+    def paired_end = (!is_single_end && !clean_args.contains('-p')) ? '-p' : ''
+    clean_args = clean_args.replaceAll(/\s+/, ' ').trim()
 
     def strandedness = 0
     if (meta.strandedness == 'forward') {
@@ -30,15 +44,16 @@ process SUBREAD_FEATURECOUNTS {
     else if (meta.strandedness == 'reverse') {
         strandedness = 2
     }
+
     """
     featureCounts \\
-        ${args} \\
+        ${clean_args} \\
         ${paired_end} \\
         -T ${task.cpus} \\
         -a ${annotation} \\
         -s ${strandedness} \\
         -o ${prefix}.featureCounts.tsv \\
-        ${bams.join(' ')}
+        ${bam_inputs}
     """
 
     stub:
