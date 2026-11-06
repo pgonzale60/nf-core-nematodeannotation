@@ -41,20 +41,25 @@
 
 #### `workflows/nematodeannotation.nf`
 - **Includes:**
-  - `REPEAT_MASKING_SATELLITES` from `../subworkflows/local/repeat_masking_satellites/main`
   - `REPEAT_ANNOTATION` from `../subworkflows/local/repeat_annotation/main`
   - `RNASEQ_ALIGN` from `../subworkflows/local/rnaseq_align/main`
+  - `BAM_TO_CRAM` from `../subworkflows/local/bam_to_cram/main`
   - `SPLICED_LEADER_DISCOVERY` from `../subworkflows/local/spliced_leader_discovery/main`
   - `GENE_PREDICTION` from `../subworkflows/local/gene_prediction/main`
   - `FUNCTIONAL_ANNOTATION` from `../subworkflows/local/functional_annotation/main`
-  - `SAMTOOLS_VIEW as BAM_TO_CRAM` from `../modules/nf-core/samtools/view/main`
-  - `SAMTOOLS_INDEX as INDEX_CRAM` from `../modules/nf-core/samtools/index/main`
   - `SUBREAD_FEATURECOUNTS` from `../modules/nf-core/subread/featurecounts/main`
 - **Workflow `NEMATODEANNOTATION`:**
   - `take:` *(none)*
   - `emit:` *(none)*
 
 ### 1.2 Local Subworkflows (`subworkflows/local/*/main.nf`)
+
+#### `subworkflows/local/bam_to_cram/main.nf`
+- **Includes:**
+  - `SAMTOOLS_INDEX as INDEX_CRAM` from `../../../modules/nf-core/samtools/index/main`
+- **Workflow `BAM_TO_CRAM`:**
+  - `take:` *(none)*
+  - `emit:` *(none)*
 
 #### `subworkflows/local/functional_annotation/main.nf`
 - **Includes:**
@@ -164,7 +169,7 @@
 | `BEDTOOLS_MASKFASTA` | `modules/local/bedtools/maskfasta/main.nf` | `tuple val(meta), path(bed)`<br>`path fasta` | `tuple val(meta), path("*.fa"), emit: fasta`<br>`tuple val("${task.process}"), val('bedtools'), eval("bedtools --version \| sed -e 's/bedtools v//g'"), topic: versions, emit: versions_bedtools` |
 | `BEDTOOLS_SUBTRACT` | `modules/local/bedtools/subtract/main.nf` | `tuple val(meta), path(intervals1), path(intervals2)` | `tuple val(meta), path("*.bed"), emit: bed`<br>`tuple val("${task.process}"), val('bedtools'), eval("bedtools --version \| sed -e 's/bedtools v//g'"), topic: versions, emit: versions_bedtools` |
 | `BLASTTOBED` | `modules/local/blasttobed/main.nf` | `tuple val(meta), path(blast_tsv)` | `tuple val(meta), path("*.sorted.bed"), emit: bed`<br>`tuple val("${task.process}"), val('awk'), eval("awk 2>&1 \| head -n 1 \| sed -e 's/.*BusyBox v//; s/ .*//; s/GNU Awk //'"), topic: versions, emit: versions_awk` |
-| `BRAKER3` | `modules/local/braker3/main.nf` | `tuple val(meta), path(fasta)`<br>`path bam`<br>`path rnaseq_sets_dirs`<br>`path rnaseq_sets_ids`<br>`path proteins`<br>`path hintsfile` | `tuple val(meta), path("$prefix/braker.gtf") , emit: gtf`<br>`tuple val(meta), path("$prefix/braker.codingseq") , emit: cds`<br>`tuple val(meta), path("$prefix/braker.aa") , emit: aa`<br>`tuple val(meta), path("$prefix/Augustus/augustus.hints.gtf") , emit: augustus_gtf, optional: true`<br>`tuple val(meta), path("$prefix/Augustus/augustus.hints.aa") , emit: augustus_aa , optional: true`<br>`tuple val(meta), path("$prefix/GeneMark-*/genemark.gtf") , emit: genemark_gtf, optional: true`<br>`tuple val(meta), path("$prefix/braker.log") , emit: log`<br>`tuple val(meta), path("$prefix/hintsfile.gff") , emit: hintsfile , optional: true`<br>`tuple val(meta), path("$prefix/braker.gff3") , emit: gff3 , optional: true`<br>`tuple val(meta), path("$prefix/what-to-cite.txt") , emit: citations`<br>`tuple val("${task.process}"), val('braker3'), eval("braker.pl --version 2>/dev/null \| sed 's/braker.pl version //'"), emit: versions_braker3, topic: versions`<br>`tuple val("${task.process}"), val('augustus'), eval("augustus --version 2>&1 \| sed -n 's/AUGUSTUS (\\(.*\\)) is a gene .*/\\1/p'"), emit: versions_augustus, topic: versions`<br>`tuple val("${task.process}"), val('genemark-etp'), eval("gmetp.pl 2>&1 \| sed -n 's/ETP version \\(.*\\)/\\1/p'"), emit: versions_genemarketp, topic: versions`<br>`tuple val("${task.process}"), val('prothint'), eval("prothint.py --version 2>&1 \| sed 's/prothint.py //1'"), emit: versions_prothint, topic: versions` |
+| `BRAKER3` | `modules/local/braker3/main.nf` | `tuple val(meta), path(fasta)`<br>`path bam`<br>`path bai`<br>`path rnaseq_sets_dirs`<br>`path rnaseq_sets_ids`<br>`path proteins`<br>`path hintsfile` | `tuple val(meta), path("$prefix/braker.gtf") , emit: gtf`<br>`tuple val(meta), path("$prefix/braker.codingseq") , emit: cds`<br>`tuple val(meta), path("$prefix/braker.aa") , emit: aa`<br>`tuple val(meta), path("$prefix/Augustus/augustus.hints.gtf") , emit: augustus_gtf, optional: true`<br>`tuple val(meta), path("$prefix/Augustus/augustus.hints.aa") , emit: augustus_aa , optional: true`<br>`tuple val(meta), path("$prefix/GeneMark-*/genemark.gtf") , emit: genemark_gtf, optional: true`<br>`tuple val(meta), path("$prefix/braker.log") , emit: log`<br>`tuple val(meta), path("$prefix/hintsfile.gff") , emit: hintsfile , optional: true`<br>`tuple val(meta), path("$prefix/braker.gff3") , emit: gff3 , optional: true`<br>`tuple val(meta), path("$prefix/what-to-cite.txt") , emit: citations`<br>`tuple val("${task.process}"), val('braker3'), eval("braker.pl --version 2>/dev/null \| sed 's/braker.pl version //'"), emit: versions_braker3, topic: versions`<br>`tuple val("${task.process}"), val('augustus'), eval("augustus --version 2>&1 \| sed -n 's/AUGUSTUS (\\(.*\\)) is a gene .*/\\1/p'"), emit: versions_augustus, topic: versions`<br>`tuple val("${task.process}"), val('genemark-etp'), eval("gmetp.pl 2>&1 \| sed -n 's/ETP version \\(.*\\)/\\1/p'"), emit: versions_genemarketp, topic: versions`<br>`tuple val("${task.process}"), val('prothint'), eval("prothint.py --version 2>&1 \| sed 's/prothint.py //1'"), emit: versions_prothint, topic: versions` |
 | `EARLGREY` | `modules/local/earlgrey/main.nf` | `tuple val(meta), path(fasta)`<br>`val rhabditida_clade` | `tuple val(meta), path("*_EarlGrey/*_summaryFiles/*.softmasked.fasta") , emit: masked_fasta`<br>`tuple val(meta), path("*_EarlGrey/*_summaryFiles/*.filteredRepeats.gff3") , emit: gff3 , optional: true`<br>`tuple val(meta), path("*_EarlGrey/*_summaryFiles/*.filteredRepeats.bed") , emit: bed , optional: true`<br>`tuple val(meta), path("*_EarlGrey/*_summaryFiles/*.highLevelCount.txt") , emit: summary , optional: true`<br>`tuple val(meta), path("*_EarlGrey/*_summaryFiles/*_combined_library.fasta") , emit: te_library , optional: true`<br>`tuple val(meta), path("*_EarlGrey/*_summaryFiles/*_divergence_summary_table.tsv") , emit: divergence , optional: true`<br>`tuple val(meta), path("*_EarlGrey") , emit: outdir`<br>`tuple val("${task.process}"), val('earlgrey'), eval("earlGrey -h 2>&1 \| grep -i 'earlgrey version' \| head -1 \| sed 's/.*version //; s/ //g'"), topic: versions, emit: versions_earlgrey` |
 | `GFFREAD_HELIXER` | `modules/local/gffread/main.nf` | `tuple val(meta), path(gff3)` | `tuple val(meta), path("*.gtf"), emit: gtf`<br>`tuple val("${task.process}"), val('gffread'), val("0.12.7"), emit: versions_gffread, topic: versions` |
 | `GFFREAD_PROTEIN` | `modules/local/gffread/main.nf` | — | — |
@@ -181,7 +186,7 @@
 | `HISAT2_ALIGN_SOFTCLIP` | `modules/local/slidr/alignreads/main.nf` | `tuple val(meta), path(reads)`<br>`tuple val(meta2), path(index)` | `tuple val(meta), path("*.bam") , emit: bam`<br>`tuple val(meta), path("*.bam.bai") , emit: bai`<br>`tuple val(meta), path("*.hisat2.log") , emit: log`<br>`tuple val("${task.process}"), val('hisat2'), eval("hisat2 --version \| sed -n '1s/.*version //p'"), topic: versions, emit: versions_hisat2`<br>`tuple val("${task.process}"), val('samtools'), eval("samtools --version \| sed -n '1s/samtools //p'"), topic: versions, emit: versions_samtools` |
 | `SLIDR_CLUSTERTAILS` | `modules/local/slidr/clustertails/main.nf` | `tuple val(meta), path(tails)`<br>`val min_len` | `tuple val(meta), path("${prefix}_centroids.fa") , emit: centroids`<br>`tuple val(meta), path("${prefix}_cluster_summary.tsv"), emit: summary`<br>`tuple val(meta), path("${prefix}_readinfo.tsv.gz") , emit: readinfo`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
 | `SLIDR_CONSENSUS` | `modules/local/slidr/consensus/main.nf` | `tuple val(meta), path(sites)`<br>`path readinfo`<br>`path slrnas`<br>`path rrna_gff`<br>`path rfam_gff`<br>`val min_support`<br>`val acceptor`<br>`val max_leader_gene_distance`<br>`val rrna_flank` | `tuple val(meta), path("*_sl_acceptor_sites.bed") , emit: bed`<br>`tuple val(meta), path("*_sl_acceptor_sites.gff3"), emit: gff`<br>`tuple val(meta), path("*_sl_summary.tsv") , emit: summary`<br>`tuple val(meta), path("*_sl_sequences.fa") , emit: sl_fasta`<br>`tuple val(meta), path("*_sl_site_pool.tsv") , emit: site_pool`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
-| `SLIDR_EXTRACTTAILS` | `modules/local/slidr/extracttails/main.nf` | `tuple val(meta), path(bam), path(bai)`<br>`path fasta` | `tuple val(meta), path("*.tails.fa.gz") , emit: tails`<br>`tuple val(meta), path("*.acceptor_sites.tsv.gz"), emit: sites`<br>`tuple val(meta), path("*.tail_stats.json") , emit: stats`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
+| `SLIDR_EXTRACTTAILS` | `modules/local/slidr/extracttails/main.nf` | `tuple val(meta), path(bam), path(bai)`<br>`path fasta`<br>`val min_len` | `tuple val(meta), path("*.tails.fa.gz") , emit: tails`<br>`tuple val(meta), path("*.acceptor_sites.tsv.gz"), emit: sites`<br>`tuple val(meta), path("*.tail_stats.json") , emit: stats`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
 | `SLIDR_SLRNAFILTER` | `modules/local/slidr/slrnafilter/main.nf` | `tuple val(meta), path(blast)`<br>`tuple val(meta2), path(centroids)`<br>`tuple val(meta3), path(fasta)`<br>`val donor`<br>`val sm`<br>`val max_rna_len`<br>`val max_overlap` | `tuple val(meta), path("${prefix}.candidate_sl_rnas.fa") , emit: fasta`<br>`tuple val(meta), path("${prefix}.sl_rna_candidates.tsv") , emit: tsv`<br>`tuple val(meta), path("${prefix}.sl_rna_candidates.gff3"), emit: gff`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
 | `SLIDR_SLRNASITES` | `modules/local/slidr/slrnasites/main.nf` | `tuple val(meta), path(centroids)`<br>`tuple val(meta2), path(fasta)`<br>`val min_reads`<br>`val evalue` | `tuple val(meta), path("${prefix}.centroids.blastn.tsv.gz"), emit: blast`<br>`tuple val("${task.process}"), val('blastn'), eval('blastn -version 2>&1 \| sed "s/^.*blastn: //; s/ .*$//"'), topic: versions, emit: versions_blast` |
 | `SLIDR_TSSEXPORTER` | `modules/local/slidr/tssexporter/main.nf` | `tuple val(meta), path(pool)`<br>`val min_reads`<br>`val min_libraries` | `tuple val(meta), path("*.tss.gff3") , emit: tss_gff`<br>`tuple val(meta), path("*.tss_metrics.tsv"), emit: metrics`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
@@ -190,7 +195,7 @@
 | `TESCORER` | `modules/local/tescorer/main.nf` | `tuple val(meta), path(gtf), path(fasta), path(iprscan_tsv), path(earlgrey_gff3), path(satellites_bed), path(operons_gff3), path(orthogroups_tsv)` | `tuple val(meta), path("${prefix}.gene_te_scores.tsv"), emit: te_scores_tsv`<br>`tuple val(meta), path("${prefix}.te_scoring_summary.md"), emit: summary_md`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
 | `TRF` | `modules/local/trf/main.nf` | `tuple val(meta), path(fasta)`<br>`val match`<br>`val mismatch`<br>`val delta`<br>`val pm`<br>`val pi`<br>`val minscore`<br>`val maxperiod` | `tuple val(meta), path("*.dat"), emit: dat`<br>`tuple val("${task.process}"), val('trf'), eval("strings \$(which trf) \| grep -E '^[0-9]+(\\.[0-9]+)+' \| head -n 1"), topic: versions, emit: versions_trf` |
 | `TSEBRA` | `modules/local/tsebra/main.nf` | `tuple val(meta), path(gtfs)`<br>`path hints_files`<br>`path keep_gtfs`<br>`path config` | `tuple val(meta), path("*.gtf"), emit: tsebra_gtf`<br>`tuple val(meta), path("*.tsv"), emit: tsebra_scores`<br>`tuple val("${task.process}"), val('tsebra'), val("1.1.2.5"), emit: versions_tsebra, topic: versions` |
-| `VALIDATE_RNASEQ_ALIGNMENT` | `modules/local/validate_rnaseq_alignment/main.nf` | `tuple val(meta), path(alignment), path(index)`<br>`tuple val(meta_fai), path(fai)` | `tuple val(meta), path(alignment), path(index), env('IS_HISAT2'), env('IS_COORDINATE_VALID'), emit: evaluation`<br>`tuple val("${task.process}"), val('samtools'), eval('samtools version \| sed "1!d;s/.* //"'), topic: versions, emit: versions_samtools` |
+| `VALIDATE_RNASEQ_ALIGNMENT` | `modules/local/validate_rnaseq_alignment/main.nf` | `tuple val(meta), path(alignment), path(index)`<br>`tuple val(meta_fai), path(fai)` | `tuple val(meta), path(alignment), path(index), env('IS_HISAT2'), env('IS_COORDINATE_VALID'), emit: evaluation`<br>`tuple val(meta), path(alignment), path(index), env('IS_SPLICED'), env('IS_VALID'), emit: spliced_evaluation, optional: true`<br>`tuple val("${task.process}"), val('samtools'), eval('samtools version \| sed "1!d;s/.* //"'), topic: versions, emit: versions_samtools` |
 | `BEDTOOLS_BAMTOBEDSORT` | `modules/sanger-tol/bedtools/bamtobedsort/main.nf` | `tuple val(meta), path(bam)` | `tuple val(meta), path("*.bed"), emit: sorted_bed`<br>`tuple val("${task.process}"), val('bedtools'), eval('bedtools --version \| sed -e "s/bedtools v//g"'), emit: versions_bedtools, topic: versions`<br>`tuple val("${task.process}"), val('samtools'), eval('samtools version \| sed "1!d;s/.* //"'), emit: versions_samtools, topic: versions` |
 | `BLAST_BLASTN` | `modules/sanger-tol/blast/blastn/main.nf` | — | — |
 | `SAMTOOLS_MERGEDUP` | `modules/sanger-tol/samtools/mergedup/main.nf` | `tuple val(meta) , path(input_files, stageAs: "?/*"), path(index_files, stageAs: "?/*")`<br>`tuple val(meta2), path(fasta), path(fai), path(gzi)` | `tuple val(meta), path("*.bam") , emit: bam, optional: true`<br>`tuple val(meta), path("*.cram") , emit: cram, optional: true`<br>`tuple val(meta), path("*.{csi,crai}"), emit: index, optional: true`<br>`tuple val(meta), path("*.metrics") , emit: metrics`<br>`tuple val("${task.process}"), val('samtools'), eval('samtools version \| sed "1!d;s/.* //"'), emit: versions_samtools, topic: versions` |
@@ -223,13 +228,6 @@
 
 ## 3. Python Module AST Symbol Table
 
-### `modules/local/infernal/cmscan/resources/usr/bin/cmscan_to_gff3.py`
-
-| Symbol | Kind | Lines | Signature | Summary |
-| :--- | :--- | :--- | :--- | :--- |
-| `parse_cmscan_tbl` | `function` | `L10-L51` | `def parse_cmscan_tbl(tbl_file, max_evalue=0.01)` | — |
-| `main` | `function` | `L53-L80` | `def main()` | — |
-
 ### `modules/local/ncrna_tandem_filter/resources/usr/bin/filter_structural_tandem_arrays.py`
 
 | Symbol | Kind | Lines | Signature | Summary |
@@ -254,7 +252,7 @@
 | `parse_centroids_fasta` | `function` | `L60-L81` | `def parse_centroids_fasta(fasta_path: str)` | Parses centroids FASTA and returns dict: {centroid_id: sequence} |
 | `parse_blast_bed` | `function` | `L84-L113` | `def parse_blast_bed(bed_path: str)` | Parses BLAST-to-BED intervals: |
 | `cluster_into_arrays` | `function` | `L116-L161` | `def cluster_into_arrays(monomers, max_gap=100)` | Merges sorted monomer hits of the same family into contiguous Satellite Arrays. |
-| `main` | `function` | `L164-L306` | `def main()` | — |
+| `main` | `function` | `L164-L308` | `def main()` | — |
 
 ### `modules/local/selectbestmodel/resources/usr/bin/select_best_annotation.py`
 
@@ -292,9 +290,9 @@
 | `cluster_consensus` | `function` | `L292-L308` | `def cluster_consensus(tails: List[str]) -> Tuple[str, int]` | Majority-length consensus, ported from the tested implementation. |
 | `is_adapter_contaminated` | `function` | `L311-L324` | `def is_adapter_contaminated(seq: str) -> bool` | Check if sequence contains common Illumina/sequencing adapter artifacts. |
 | `classify_sl_family` | `function` | `L327-L347` | `def classify_sl_family(seq: str) -> str` | Classify spliced leader sequence into biological families based on 3' conserved core motif. |
-| `main` | `function` | `L350-L619` | `def main()` | — |
-| `load_rfam_sl_loci` | `function` | `L620-L651` | `def load_rfam_sl_loci(path: Optional[str]) -> List[dict]` | Load curated/predicted SL loci from Rfam cmscan GFF3 (e.g. RF00198 for SL1, RF00199 for SL2). |
-| `annotate_with_rfam` | `function` | `L654-L665` | `def annotate_with_rfam(reportable: List[dict], rfam_loci: List[dict], max_overlap_dist: int=200)` | Cross-reference discovered leaders against Rfam SL loci. |
+| `main` | `function` | `L350-L618` | `def main()` | — |
+| `load_rfam_sl_loci` | `function` | `L619-L650` | `def load_rfam_sl_loci(path: Optional[str]) -> List[dict]` | Load curated/predicted SL loci from Rfam cmscan GFF3 (e.g. RF00198 for SL1, RF00199 for SL2). |
+| `annotate_with_rfam` | `function` | `L653-L664` | `def annotate_with_rfam(reportable: List[dict], rfam_loci: List[dict], max_overlap_dist: int=200)` | Cross-reference discovered leaders against Rfam SL loci. |
 
 ### `modules/local/slidr/extracttails/resources/usr/bin/slidr_extract_tails.py`
 
@@ -341,17 +339,26 @@
 | `parse_sl_bed` | `function` | `L190-L239` | `def parse_sl_bed(bed_path: str, leader_family_map: Optional[Dict[str, str]]=None) -> List[dict]` | Parse BED6 trans-splice sites with biological leader classification. |
 | `main` | `function` | `L242-L440` | `def main()` | — |
 
-### `modules/local/tescorer/resources/usr/bin/prep_longest_orthofinder.py`
-*(No top-level functions or classes defined.)*
-
 ### `modules/local/tescorer/resources/usr/bin/te_scorer.py`
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `parse_args` | `function` | `L61-L75` | `def parse_args()` | — |
-| `open_file` | `function` | `L77-L80` | `def open_file(path)` | — |
-| `normalize_id` | `function` | `L82-L84` | `def normalize_id(identifier)` | Normalize transcript / gene identifiers between GTF (anno1.g1.t1) and TSV (g1.t1). |
-| `main` | `function` | `L86-L518` | `def main()` | — |
+| `parse_args` | `function` | `L66-L81` | `def parse_args()` | — |
+| `open_file` | `function` | `L83-L86` | `def open_file(path)` | — |
+| `normalize_id` | `function` | `L88-L90` | `def normalize_id(identifier)` | Normalize transcript / gene identifiers between GTF (anno1.g1.t1) and TSV (g1.t1). |
+| `extract_te_class` | `function` | `L92-L155` | `def extract_te_class(feature_type, attr_str)` | Extract TE classification from GFF3 Column 3 and Column 9 attributes. |
+| `main` | `function` | `L157-L691` | `def main()` | — |
+
+### `modules/local/validate_rnaseq_alignment/resources/usr/bin/validate_rnaseq_alignment.py`
+
+| Symbol | Kind | Lines | Signature | Summary |
+| :--- | :--- | :--- | :--- | :--- |
+| `parse_args` | `function` | `L24-L57` | `def parse_args()` | — |
+| `check_integrity` | `function` | `L60-L69` | `def check_integrity(alignment_path: pathlib.Path) -> bool` | Run samtools quickcheck to ensure the alignment is complete and uncorrupted. |
+| `get_header` | `function` | `L72-L84` | `def get_header(alignment_path: pathlib.Path, reference_path: pathlib.Path \| None) -> str` | Extract SAM header text using samtools view -H. |
+| `validate_coordinates_against_fai` | `function` | `L87-L131` | `def validate_coordinates_against_fai(header: str, fai_path: pathlib.Path) -> tuple[bool, list[str]]` | Verify that all contigs in alignment header match the target assembly FAI lengths. |
+| `check_spliced_and_aligner` | `function` | `L134-L184` | `def check_spliced_and_aligner(alignment_path: pathlib.Path, header: str, reference_path: pathlib.Path \| None) -> tuple[bool, str, bool]` | Detect aligner provenance (HISAT2, STAR, Minimap2) and spliced read status. |
+| `main` | `function` | `L187-L274` | `def main()` | — |
 
 ### `scripts/check_data_contracts.py`
 
