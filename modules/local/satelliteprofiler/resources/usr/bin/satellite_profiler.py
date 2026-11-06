@@ -180,10 +180,12 @@ def main():
 
     if not monomers:
         sys.stderr.write("No satellite monomers found in input BED.\n")
-        # Touch empty deliverables
-        for suffix in ("_satellite_arrays.gff3", "_satellite_monomers.gff3", "_satellite_families.tsv", "_satellite_monomers.fasta"):
+        # Touch empty deliverables (and write valid schema header for TSV)
+        for suffix in ("_satellite_arrays.gff3", "_satellite_monomers.gff3", "_satellite_monomers.fasta"):
             with open(os.path.join(args.outdir, f"{args.prefix}{suffix}"), "w") as f:
                 pass
+        with open(os.path.join(args.outdir, f"{args.prefix}_satellite_families.tsv"), "w") as f:
+            f.write("family_id\tcentroid_id\tmonomer_length_bp\tgc_percent\ttotal_coverage_bp\tcopy_count\tarray_count\n")
         return 0
 
     # 2. Measure coverage per centroid and rank families

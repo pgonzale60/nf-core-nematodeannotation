@@ -55,12 +55,21 @@ workflow REPEAT_ANNOTATION {
     // If an existing Earl Grey seed directory is provided, we bypass re-masking with BEDTOOLS_MASK_STRUCTURAL
     // because the seed directory was already executed on the upstream masked assembly.
     ch_earlgrey_input_fasta = ch_sat_hard_masked_fasta
-    if (!val_earlgrey_seed_dir && ch_structural_mask_bed) {
+    if (!val_earlgrey_seed_dir) {
+        ch_masked_or_raw = ch_sat_hard_masked_fasta
+            .combine(ch_structural_mask_bed.ifEmpty([[:], []]))
+            .branch { meta, fasta, bed_meta, bed ->
+                mask: bed ? true : false
+                    return [ meta, bed, fasta ]
+                pass: true
+                    return [ meta, fasta ]
+            }
+
         BEDTOOLS_MASK_STRUCTURAL(
-            ch_structural_mask_bed,
-            ch_sat_hard_masked_fasta.map { _meta, fa -> fa }
+            ch_masked_or_raw.mask.map { meta, bed, _fasta -> [ meta, bed ] },
+            ch_masked_or_raw.mask.map { _meta, _bed, fasta -> fasta }
         )
-        ch_earlgrey_input_fasta = BEDTOOLS_MASK_STRUCTURAL.out.fasta
+        ch_earlgrey_input_fasta = ch_masked_or_raw.pass.mix(BEDTOOLS_MASK_STRUCTURAL.out.fasta)
     }
     ch_sat_bed               = REPEAT_MASKING_SATELLITES.out.satellite_bed
     ch_centroids             = REPEAT_MASKING_SATELLITES.out.centroids

@@ -39,6 +39,7 @@ process BLAST_BLASTN {
     }
 
     // Convert input to fasta if needed
+    def is_fasta = !(input.name.endsWith('bam') || input.name.endsWith('cram') || (input.name ==~ /.*\.(fastq|fq)(\.gz)?$/))
     def args2 = task.ext.args2 ?: ""
     def args3 = task.ext.args3 ?: ""
     def input_content = (input.name.endsWith('bam') || input.name.endsWith('cram')) ? "<(samtools fasta ${args2} --threads ${task.cpus} ${input})" :
@@ -51,27 +52,35 @@ process BLAST_BLASTN {
         gzip -c -d ${input} > ${fasta_name}
     fi
 
-    export BLASTDB=${db}
+    # Guard against 0-sequence FASTA queries (prevents NCBI blastn CFastaReader exit code 1)
+    if [ "${is_fasta}" == "true" ] && [ -f "${fasta_name}" ] && ! grep -q '^>' "${fasta_name}" 2>/dev/null; then
+        echo "No sequences found in FASTA query ${fasta_name}; emitting empty blastn output"
+        touch "${prefix}.blastn.txt"
+        gzip -c "${prefix}.blastn.txt" > "${prefix}.txt.gz"
+    else
+        export BLASTDB=${db}
 
-    DB=`find -L ./ -name "*.nal" | sed 's/\\.nal\$//'`
-    if [ -z "\$DB" ]; then
-        DB=`find -L ./ -name "*.nin" | sed 's/\\.nin\$//'`
+        DB=`find -L ./ -name "*.nal" | sed 's/\\.nal\$//'`
+        if [ -z "\$DB" ]; then
+            DB=`find -L ./ -name "*.nin" | sed 's/\\.nin\$//'`
+        fi
+        echo Using \$DB
+
+        blastn \\
+            -num_threads ${task.cpus} \\
+            -db \$DB \\
+            -query ${input_content} \\
+            ${taxidlist_cmd} \\
+            ${taxids_cmd} \\
+            ${args} \\
+            | gzip -c > ${prefix}.txt.gz
     fi
-    echo Using \$DB
-
-    blastn \\
-        -num_threads ${task.cpus} \\
-        -db \$DB \\
-        -query ${input_content} \\
-        ${taxidlist_cmd} \\
-        ${taxids_cmd} \\
-        ${args} \\
-        | gzip -c > ${prefix}.txt.gz
     """
 
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
+    touch "${prefix}.blastn.txt"
     echo "" | gzip > ${prefix}.txt.gz
     """
 }
