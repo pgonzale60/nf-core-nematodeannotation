@@ -34,6 +34,11 @@ input:
       description: BAM file of RNA-seq data to be passed to --bam
       pattern: "*.bam"
       ontologies: []
+  - bai:
+      type: file
+      description: Optional BAM index (.bai) file associated with the RNA-seq BAM
+      pattern: "*.bai"
+      ontologies: []
   - rnaseq_sets_dirs:
       type: file
       description: Directories of RNA-seq data sets to be passed to

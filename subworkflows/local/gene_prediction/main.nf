@@ -19,7 +19,7 @@ include { ARCHIVE_SUBOPTIMAL_MODELS                     } from '../../../modules
 workflow GENE_PREDICTION {
     take:
     ch_assembly            // channel: [ val(meta), path(fasta) ]
-    ch_bam                 // channel: path(bam) or []
+    ch_rnaseq_bam          // channel: path(bam), [bam, bai], [meta, bam, bai], or []
     ch_proteins            // channel: path(fasta) or []
     ch_busco_lineages      // channel: path(lineages_dir) or []
     val_helixer_lineage    // string: Helixer lineage model (e.g. 'invertebrate')
@@ -34,6 +34,42 @@ workflow GENE_PREDICTION {
     main:
     ch_assembly_plain = ch_assembly.map { _meta, fasta -> fasta }
 
+    // Allow ch_rnaseq_bam to provide either bam, [bam, bai], [meta, bam, bai], or empty []
+    ch_bam_unpacked = ch_rnaseq_bam
+        .ifEmpty([ [], [] ])
+        .map { entry ->
+            def b = []
+            def i = []
+            if (entry instanceof List || entry instanceof Collection) {
+                if (entry.size() == 0) {
+                    b = []
+                    i = []
+                } else if (entry[0] instanceof Map) {
+                    b = entry.size() > 1 ? entry[1] : []
+                    i = entry.size() > 2 ? entry[2] : []
+                } else {
+                    b = entry[0]
+                    i = entry.size() > 1 ? entry[1] : []
+                }
+            } else {
+                b = entry ?: []
+                i = []
+            }
+            if (b && !i) {
+                def candidate_bai = file("${b}.bai")
+                def candidate_bai2 = file("${b.toString().replaceAll(/\\.bam$/, '')}.bai")
+                if (candidate_bai.exists()) {
+                    i = candidate_bai
+                } else if (candidate_bai2.exists()) {
+                    i = candidate_bai2
+                }
+            }
+            [ b, i ]
+        }
+
+    ch_bam = ch_bam_unpacked.map { b, _i -> b }
+    ch_bai = ch_bam_unpacked.map { _b, i -> i }
+
     // 1. BRAKER3 (RNA-seq BAM + Protein Homology or pre-computed)
     if (file_braker_gtf && file_braker_aa) {
         ch_braker_gtf   = ch_assembly.map { meta, _f -> [ meta, file_braker_gtf ] }
@@ -46,6 +82,7 @@ workflow GENE_PREDICTION {
         BRAKER3(
             ch_assembly,
             ch_bam,
+            ch_bai,
             [],
             [],
             ch_proteins,
@@ -59,8 +96,9 @@ workflow GENE_PREDICTION {
         ch_braker_hints = BRAKER3.out.hintsfile.map { _meta, hints -> hints }
     }
 
-    // Translate GeneMark GTF to AA if available
-    ch_genemark_for_prot = ch_genemark_gtf.map { meta, gtf -> [ [ id: "${meta.id}.genemark" ], gtf ] }
+    // Translate GeneMark GTF to AA if available (guard against empty GTF when precomputed BRAKER is supplied)
+    ch_genemark_valid = ch_genemark_gtf.filter { _meta, gtf -> gtf && gtf != [] }
+    ch_genemark_for_prot = ch_genemark_valid.map { meta, gtf -> [ [ id: "${meta.id}.genemark" ], gtf ] }
     GFFREAD_GENEMARK_PROTEIN(
         ch_genemark_for_prot,
         ch_assembly_plain
@@ -142,8 +180,8 @@ workflow GENE_PREDICTION {
         .map { id, meta, gtf, aa -> [ id, meta, 'Augustus_hints', gtf, aa ] }
 
     ch_cand_genemark = ch_genemark_gtf.map { meta, gtf -> [ meta.id, meta, gtf ] }
-        .join(ch_genemark_aa.map { meta, aa -> [ meta.id, aa ] })
-        .map { id, meta, gtf, aa -> [ id, meta, 'GeneMark', gtf, aa ] }
+        .join(ch_genemark_aa.map { meta, aa -> [ meta.id, aa ] }, remainder: true)
+        .map { id, meta, gtf, aa -> [ id, meta, 'GeneMark', gtf ?: [], aa ?: [] ] }
 
     ch_cand_tsebra = TSEBRA.out.tsebra_gtf.map { meta, gtf -> [ meta.id, meta, gtf ] }
         .join(ch_tsebra_aa.map { meta, aa -> [ meta.id, aa ] })
