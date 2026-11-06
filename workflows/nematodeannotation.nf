@@ -133,10 +133,11 @@ workflow NEMATODEANNOTATION {
     }
 
     emit:
-    representative_gtf = GENE_PREDICTION.out.representative_gtf
-    representative_faa = GENE_PREDICTION.out.representative_faa
-    representative_fna = GENE_PREDICTION.out.representative_fna
-    decision_tsv       = GENE_PREDICTION.out.representative_tsv
-    suboptimal_models  = GENE_PREDICTION.out.suboptimal_models_archive
-    versions           = ch_versions
+    representative_gtf              = GENE_PREDICTION.out.representative_gtf
+    representative_faa              = GENE_PREDICTION.out.representative_faa
+    representative_fna              = GENE_PREDICTION.out.representative_fna
+    decision_tsv                    = GENE_PREDICTION.out.representative_tsv
+    representative_busco_full_table = GENE_PREDICTION.out.representative_busco_full_table
+    suboptimal_models               = GENE_PREDICTION.out.suboptimal_models_archive
+    versions                        = ch_versions
 }
