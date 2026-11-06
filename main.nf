@@ -57,6 +57,8 @@ params.skip_functional_annotation = params.skip_functional_annotation ?: false
 params.skip_te_scoring     = params.skip_te_scoring     ?: false
 params.orthogroups_tsv     = params.orthogroups_tsv     ?: null
 params.satellites_bed      = params.satellites_bed      ?: null
+params.use_sat_only_mask_for_genes = params.use_sat_only_mask_for_genes ?: false
+params.skip_earlgrey       = params.skip_earlgrey       ?: false
 
 // Repeat parameters
 params.window_size         = params.window_size         ?: 500000
@@ -267,6 +269,8 @@ workflow {
     ch_masked_assembly = ch_assembly
     ch_sat_masked_assembly = ch_assembly
 
+    def skip_te_effective = params.skip_te || params.skip_earlgrey
+
     if (!params.skip_repeats) {
         REPEAT_ANNOTATION(
             ch_assembly,
@@ -276,7 +280,7 @@ workflow {
             params.min_copies,
             params.min_identity,
             params.clade,
-            params.skip_te,
+            skip_te_effective,
             params.earlgrey_dir,
             params.earlgrey_seed_dir,
             ch_structural_mask_bed
@@ -291,6 +295,7 @@ workflow {
     ch_primary_bam = channel.empty()
     ch_individual_bams = channel.empty()
     ch_aligned_merged_bam = channel.empty()
+    ch_primary_bam_bai = channel.empty()
 
     def precomputed_aln = params.bam ?: null
 
@@ -320,8 +325,12 @@ workflow {
             is_hisat2.toString().trim() == 'true' && is_coord.toString().trim() == 'true'
         }
 
-        ch_aligned_merged_bam = ch_hisat2_valid.map { meta, aln_f, _idx, _res, _coord -> [ meta, aln_f ] }
+        ch_aligned_merged_bam = ch_hisat2_valid.map { meta, aln_f, idx, _res, _coord ->
+            def aln_meta = meta + [ single_end: false, strandedness: params.strandedness ?: 'unstranded' ]
+            [ aln_meta, aln_f ]
+        }
         ch_primary_bam = ch_hisat2_valid.map { _meta, aln_f, _idx, _res, _coord -> aln_f }
+        ch_primary_bam_bai = ch_hisat2_valid.map { _meta, aln_f, idx, _res, _coord -> [ aln_f, idx ] }
     }
 
     if (params.rnaseq_samplesheet) {
@@ -337,6 +346,9 @@ workflow {
             ch_aligned_merged_bam = RNASEQ_ALIGN.out.merged_bam
             ch_primary_bam = RNASEQ_ALIGN.out.merged_bam.map { _meta, bam -> bam }
             ch_individual_bams = RNASEQ_ALIGN.out.individual_bams
+            ch_primary_bam_bai = RNASEQ_ALIGN.out.merged_bam
+                .join(RNASEQ_ALIGN.out.merged_bai)
+                .map { _meta, bam, bai -> [ bam, bai ] }
 
             // Convert merged BAM to reference-aligned CRAM and index
             ch_bam_to_cram = RNASEQ_ALIGN.out.merged_bam.map { meta, bam -> [ meta, bam, [] ] }
@@ -479,9 +491,12 @@ workflow {
 
         def skip_helixer_val = params.skip_helixer || !params.run_helixer
 
+        def ch_assembly_for_genes = (params.use_sat_only_mask_for_genes || skip_te_effective) ?
+            ch_sat_masked_assembly : ch_masked_assembly
+
         GENE_PREDICTION(
-            ch_sat_masked_assembly,
-            ch_primary_bam,
+            ch_assembly_for_genes,
+            ch_primary_bam_bai,
             ch_proteins,
             ch_busco_lineages,
             params.helixer_lineage,
@@ -601,9 +616,15 @@ workflow {
     // -----------------------------------------------------------------------
     if ((params.rnaseq_samplesheet || params.bam) && (params.representative_gtf || !params.skip_gene_prediction)) {
         ch_counts_input = ch_aligned_merged_bam
-            .map { _meta, bam -> [ ch_assembly_meta.id, bam ] }
-            .join(ch_representative_gtf.map { meta, gtf -> [ meta.id, gtf ] })
-            .map { id, bam, gtf -> [ [ id: id, single_end: false ], [ bam ], gtf ] }
+            .combine(ch_representative_gtf)
+            .map { aln_meta, bam, _gtf_meta, gtf ->
+                def counts_meta = [
+                    id: ch_assembly_meta.id,
+                    single_end: aln_meta.single_end ?: false,
+                    strandedness: aln_meta.strandedness ?: (params.strandedness ?: 'unstranded')
+                ]
+                [ counts_meta, [ bam ], gtf ]
+            }
 
         SUBREAD_FEATURECOUNTS(
             ch_counts_input

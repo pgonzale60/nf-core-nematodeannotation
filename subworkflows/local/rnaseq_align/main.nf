@@ -170,11 +170,19 @@ workflow RNASEQ_ALIGN {
     ch_all_bam_files = ch_aligned_bams.map { _meta, bam, _bai -> bam }.collect()
     ch_all_bai_files = ch_aligned_bams.map { _meta, _bam, bai -> bai }.collect()
 
-    ch_merge_meta = [ id: 'rnaseq_merged_spliced' ]
-    ch_merge_input = ch_all_bam_files
+    ch_merge_meta = ch_aligned_bams
+        .map { meta, _bam, _bai -> [ single_end: meta.single_end ?: false, strandedness: meta.strandedness ?: 'unstranded' ] }
         .toList()
+        .map { metas ->
+            def any_single = metas.any { it.single_end }
+            def strandedness = metas.find { it.strandedness && it.strandedness != 'unstranded' }?.strandedness ?: 'unstranded'
+            [ id: 'rnaseq_merged_spliced', single_end: any_single, strandedness: strandedness ]
+        }
+
+    ch_merge_input = ch_merge_meta
+        .combine(ch_all_bam_files.toList())
         .combine(ch_all_bai_files.toList())
-        .map { bams, bais -> [ ch_merge_meta, bams, bais ] }
+        .map { meta, bams, bais -> [ meta, bams, bais ] }
 
     SAMTOOLS_MERGE(
         ch_merge_input,

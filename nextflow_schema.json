@@ -98,12 +98,10 @@
                 },
                 "dfam_dir": {
                     "type": "string",
-                    "default": "/data/tol/resources/dfam/3.9/families/FamDB",
                     "description": "Path to Dfam FamDB directory."
                 },
                 "dfam_h5": {
                     "type": "string",
-                    "default": "/lustre/scratch122/tol/teams/blaxter/users/pg17/pde_workbench/data/rm_bypass/Dfam.h5",
                     "description": "Path to Dfam.h5 file."
                 },
                 "earlgrey_dir": {
@@ -328,6 +326,14 @@
                 "skip_te": {
                     "type": "boolean",
                     "description": "Skip Earl Grey TE discovery."
+                },
+                "skip_earlgrey": {
+                    "type": "boolean",
+                    "description": "Skip Earl Grey TE discovery (alias for skip_te)."
+                },
+                "use_sat_only_mask_for_genes": {
+                    "type": "boolean",
+                    "description": "Pass satellite-only masked assembly to gene prediction, leaving TEs unmasked."
                 },
                 "skip_ncrna": {
                     "type": "boolean",
