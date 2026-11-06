@@ -402,12 +402,12 @@ def main():
         print(f"    {key:<28} {stats[key]:>12,}", file=sys.stderr)
 
     if not sites:
-        print("[slidr_consensus] FATAL: no sites survived filtering. Check that "
+        print("[slidr_consensus] WARNING: no sites survived filtering. Check that "
               "SLIDR_ALIGNREADS actually soft-clipped leader sequence: if no "
               "centroid has a leader RNA locus, the aligner was not configured to "
-              "clip (see modules/sanger-tol/slidr/alignreads/main.nf).",
+              "clip (see modules/sanger-tol/slidr/alignreads/main.nf). "
+              "Proceeding with zero leaders.",
               file=sys.stderr)
-        sys.exit(1)
 
     # ---- locus-level pool (no per-centroid threshold) ------------------------
     # A single leader's reads are split by clustering across many centroids, so
@@ -556,9 +556,8 @@ def main():
         })
 
     if not reportable:
-        print("[slidr_consensus] FATAL: no leader passed the support thresholds "
-              f"(>= {args.min_support} reads and >= 2 sites).", file=sys.stderr)
-        sys.exit(1)
+        print("[slidr_consensus] WARNING: no leader passed the support thresholds "
+              f"(>= {args.min_support} reads and >= 2 sites). Proceeding with zero leaders.", file=sys.stderr)
 
     # ---- name leaders de novo, most-used first ------------------------------
     reportable.sort(key=lambda r: (-r["sites"], -r["reads"]))

@@ -10,6 +10,7 @@ process SLIDR_EXTRACTTAILS {
     input:
     tuple val(meta), path(bam), path(bai)
     path fasta
+    val min_len
 
     output:
     tuple val(meta), path("*.tails.fa.gz")          , emit: tails
@@ -23,7 +24,6 @@ process SLIDR_EXTRACTTAILS {
     script:
     def args   = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def min_len = task.ext.min_tail_len ?: 8
     def stranded = task.ext.strandedness ?: "0"
 
     """

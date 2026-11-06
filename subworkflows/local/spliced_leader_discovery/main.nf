@@ -40,7 +40,7 @@ workflow SPLICED_LEADER_DISCOVERY {
     val_rrna_flank                   // int: flank distance (bp) to exclude around rRNA arrays (default: 500)
 
     main:
-    ch_rrna_gff = ch_ncrna_gff ? ch_ncrna_gff.first() : []
+    ch_rrna_gff = ch_ncrna_gff.ifEmpty([]).first()
 
     // 1. Parallel soft-clipped tail and trans-splice acceptor extraction per BAM
     ch_extract_input = ch_bams
@@ -51,7 +51,8 @@ workflow SPLICED_LEADER_DISCOVERY {
 
     SLIDR_EXTRACTTAILS(
         ch_extract_input.map { meta, bam, bai, _fa -> [ meta, bam, bai ] },
-        ch_fasta.map { _meta, fa -> fa }.first()
+        ch_fasta.map { _meta, fa -> fa }.first(),
+        val_min_tail_len
     )
 
     // 2. Pool tails across libraries and cluster them with 3' anchoring
