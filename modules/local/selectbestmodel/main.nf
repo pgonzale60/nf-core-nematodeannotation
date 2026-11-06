@@ -34,7 +34,7 @@ process SELECTBESTMODEL {
     }
     def cand_str = cand_args.join(' ')
     """
-    # Tool: select_best_annotation.py | Script-SHA: 888863fc34477fe4
+    # Tool: select_best_annotation.py | Script-SHA: d4dee1b6cd45e6d4
     # Fix Augustus environment variables for Apptainer if present
     ENV_AUGUSTUS=/opt/conda/etc/conda/activate.d/augustus.sh
     if [ -f "\$ENV_AUGUSTUS" ]; then

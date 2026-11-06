@@ -10,6 +10,7 @@ process BRAKER3 {
     input:
     tuple val(meta), path(fasta)
     path bam
+    path bai
     path rnaseq_sets_dirs
     path rnaseq_sets_ids
     path proteins
@@ -43,6 +44,7 @@ process BRAKER3 {
     def prot_arg    = proteins                  ? "--prot_seq=$proteins"                    : ''
     def hints       = hintsfile                 ? "--hints=$hintsfile"                      : ''
     def new_species = args.contains('--species')? ''                                        : '--species new_species'
+    def bai_file    = (bai && bai != [])        ? "$bai"                                    : ''
     """
     # --- PRE-FLIGHT -------------------------------------------------------------
     # BRAKER3 is a monolith that runs for hours to days. The failures that actually
@@ -55,6 +57,22 @@ process BRAKER3 {
     done
 
     if [ -n "${bam_arg}" ]; then
+        if [ -n "${bai_file}" ] && [ -f "${bai_file}" ]; then
+            if [ ! -f "${bam}.bai" ]; then
+                ln -sf "${bai_file}" "${bam}.bai"
+            fi
+        elif [ ! -f "${bam}.bai" ] && [ ! -f "\${bam%.*}.bai" ]; then
+            if [ -L "$bam" ]; then
+                real_bam=\$(readlink -f "$bam" 2>/dev/null || true)
+                if [ -n "\$real_bam" ]; then
+                    if [ -f "\${real_bam}.bai" ]; then
+                        ln -sf "\${real_bam}.bai" "${bam}.bai"
+                    elif [ -f "\${real_bam%.*}.bai" ]; then
+                        ln -sf "\${real_bam%.*}.bai" "${bam}.bai"
+                    fi
+                fi
+            fi
+        fi
         samtools quickcheck -v "$bam" || { echo "FATAL: BAM fails samtools quickcheck: $bam"; fail=1; }
         samtools idxstats "$bam" > /dev/null 2>&1 || { echo "FATAL: BAM has no usable index (.bai missing?): $bam"; fail=1; }
     fi

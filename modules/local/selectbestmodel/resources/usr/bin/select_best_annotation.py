@@ -446,8 +446,8 @@ def main():
     if os.path.exists(out_busco_table) or os.path.islink(out_busco_table):
         os.remove(out_busco_table)
 
-    os.symlink(winner['gtf'], out_gtf)
-    os.symlink(winner['aa'], out_aa)
+    shutil.copy2(winner['gtf'], out_gtf)
+    shutil.copy2(winner['aa'], out_aa)
 
     # Retain BUSCO full_table.tsv for the winning candidate annotation
     if winner.get("full_table") and os.path.exists(winner["full_table"]):
