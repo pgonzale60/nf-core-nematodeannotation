@@ -13,6 +13,8 @@ and classifies them into four actionable tiers:
 import os
 import argparse
 import gzip
+import bisect
+import urllib.parse
 from collections import defaultdict
 
 # Specific Pfam / InterPro IDs indicative of Transposable Elements
@@ -55,18 +57,22 @@ TE_TEXT_KEYWORDS = {
 DEFINED_TE_CLASSES = {
     'line', 'ltr', 'dna', 'sine', 'rc', 'helitron', 'penelope', 'pararetrovirus',
     'ltr/pao', 'ltr/gypsy', 'ltr/copia', 'ltr/bel', 'line/cr1', 'line/l1',
-    'line/rte', 'dna/tcmar', 'dna/tcmar-tc1', 'dna/maverick', 'dna/cmc', 'dna/hobo'
+    'line/rte', 'dna/tcmar', 'dna/tcmar-tc1', 'dna/maverick', 'dna/cmc', 'dna/hobo',
+    'retrotransposon', 'transposon', 'transposable_element',
+    'gypsy', 'copia', 'bel', 'pao', 'tcmar', 'mariner', 'tc1', 'hobo',
+    'maverick', 'piggybac', 'l1', 'cr1', 'rte'
 }
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Multi-Evidence Tiered TE Scorer")
     parser.add_argument("--gtf", required=True, help="Input consensus GTF (e.g. TSEBRA)")
-    parser.add_argument("--fasta", required=True, help="Input predicted protein FASTA")
+    parser.add_argument("--fasta", required=False, default=None, help="Input predicted protein FASTA (optional)")
     parser.add_argument("--iprscan", required=False, help="InterProScan TSV annotations")
     parser.add_argument("--earlgrey", required=False, help="Earl Grey filteredRepeats GFF3")
     parser.add_argument("--satellites", required=False, help="Centroid satellites BED")
     parser.add_argument("--operons", required=False, help="SLOPPR polycistronic operons GFF3")
     parser.add_argument("--orthogroups", required=False, help="OrthoFinder Orthogroups.tsv")
+    parser.add_argument("--orthofinder-target-col", default=None, help="Target species column name in Orthogroups.tsv (optional)")
     parser.add_argument("--diamond", required=False, help="Diamond BLASTP TSV against Nematoda reference proteomes")
     parser.add_argument("--out-tsv", default="gene_te_scores.tsv", help="Output scoring table")
     parser.add_argument("--out-host-gtf", default=None, help="Optional output Host GTF (Tiers 1 & 2)")
@@ -82,6 +88,71 @@ def open_file(path):
 def normalize_id(identifier):
     """Normalize transcript / gene identifiers between GTF (anno1.g1.t1) and TSV (g1.t1)."""
     return identifier.replace("anno1.", "").replace("anno2.", "").strip()
+
+def extract_te_class(feature_type, attr_str):
+    """
+    Extract TE classification from GFF3 Column 3 and Column 9 attributes.
+    Earl Grey and RepeatMasker rmOutToGFF3.pl often put 'repeat_region' or 'similarity'
+    in Column 3 and place the true classification (e.g. LTR/Gypsy, LINE/L1, DNA/TcMar)
+    in Column 9 attributes (Target=, Class=, Name=, classification=).
+    """
+    attrs = {}
+    if attr_str:
+        for item in attr_str.strip().split(";"):
+            item = item.strip()
+            if not item:
+                continue
+            if "=" in item:
+                k, v = item.split("=", 1)
+                attrs[k.strip().lower()] = urllib.parse.unquote(v.strip().strip('"'))
+            elif " " in item:
+                parts = item.split(None, 1)
+                attrs[parts[0].strip().lower()] = urllib.parse.unquote(parts[1].strip().strip('"'))
+
+    candidate_cls = None
+
+    # Priority 1: Class= or classification=
+    for key in ("class", "classification"):
+        if key in attrs and attrs[key]:
+            val = attrs[key].strip()
+            if "#" in val:
+                val = val.split("#")[-1].strip()
+            if val and val.lower() not in ("repeat_region", "similarity", "unknown", "none"):
+                candidate_cls = val
+                break
+
+    # Priority 2: Target= (e.g. Target=Motif:rnd-1#LTR/Gypsy 1 450 or Target=LINE/L1 1 500)
+    if not candidate_cls and "target" in attrs and attrs["target"]:
+        tgt = attrs["target"].strip().split()[0]
+        if tgt.lower().startswith("motif:"):
+            tgt = tgt[6:]
+        if "#" in tgt:
+            val = tgt.split("#")[-1].strip()
+        else:
+            val = tgt.strip()
+        if val and val.lower() not in ("repeat_region", "similarity", "unknown", "none"):
+            candidate_cls = val
+
+    # Priority 3: Name= (e.g. Name=rnd-1_family-1#LTR/Gypsy or Name=LINE/L1)
+    if not candidate_cls and "name" in attrs and attrs["name"]:
+        nm = attrs["name"].strip()
+        if "#" in nm:
+            val = nm.split("#")[-1].strip()
+        else:
+            val = nm.strip()
+        if val and val.lower() not in ("repeat_region", "similarity", "unknown", "none"):
+            candidate_cls = val
+
+    # If Column 9 yielded an informative class, return it lowercased
+    if candidate_cls:
+        return candidate_cls.lower()
+
+    # Priority 4: Column 3 feature type if informative
+    col3 = feature_type.strip().lower()
+    if col3 not in ("repeat_region", "similarity", "match", "dispersed_repeat", "unknown", "none"):
+        return col3
+
+    return col3
 
 def main():
     args = parse_args()
@@ -171,28 +242,85 @@ def main():
     tx_ortho_hit = {}
     if args.orthogroups and os.path.exists(args.orthogroups):
         print(f"Loading OrthoFinder orthogroups from {args.orthogroups}...")
+        # Collect all known gene and transcript IDs from input GTF for target detection
+        target_ids = set()
+        for tx_id, info in transcripts.items():
+            target_ids.add(tx_id)
+            target_ids.add(normalize_id(tx_id))
+            gid = info.get('gene_id')
+            if gid:
+                target_ids.add(gid)
+                target_ids.add(normalize_id(gid))
+
         with open_file(args.orthogroups) as f:
-            header = f.readline().strip().split("\t")
-            # header: Orthogroup, sp1, sp2, sp3...
-            for line in f:
-                parts = line.strip().split("\t")
-                og = parts[0]
-                has_reference = False
-                # Check columns for reference species
-                for i in range(1, len(parts)):
-                    col_name = header[i].lower()
-                    if any(sp in col_name for sp in ['elegans', 'pacificus', 'malayi', 'ref']):
-                        if parts[i].strip():
-                            has_reference = True
-                
-                # Assign to all genes in this OG
-                for i in range(1, len(parts)):
-                    col_name = header[i].lower()
-                    if 'arhod' in col_name or 'nxaua' in col_name or 'target' in col_name:
+            header_line = f.readline()
+            if not header_line:
+                print("Warning: OrthoFinder file is empty.")
+            else:
+                header = header_line.strip().split("\t")
+                # header: Orthogroup, sp1, sp2, sp3...
+                all_lines = f.readlines()
+
+                # Identify target column(s)
+                target_cols = set()
+                if args.orthofinder_target_col:
+                    target_pattern = args.orthofinder_target_col.strip().lower()
+                    for i in range(1, len(header)):
+                        if target_pattern in header[i].lower():
+                            target_cols.add(i)
+
+                if not target_cols:
+                    for i in range(1, len(header)):
+                        if 'target' in header[i].lower():
+                            target_cols.add(i)
+
+                # If still not identified, auto-detect target column by matching gene/transcript IDs
+                if not target_cols and target_ids:
+                    col_hit_counts = defaultdict(int)
+                    for line in all_lines:
+                        parts = line.strip().split("\t")
+                        for i in range(1, len(parts)):
+                            for g in parts[i].split(","):
+                                g_clean = g.strip()
+                                if g_clean and (g_clean in target_ids or normalize_id(g_clean) in target_ids):
+                                    col_hit_counts[i] += 1
+                    if col_hit_counts:
+                        best_col = max(col_hit_counts, key=col_hit_counts.get)
+                        target_cols.add(best_col)
+                        print(f"Auto-detected OrthoFinder target column: '{header[best_col]}' (index {best_col}, {col_hit_counts[best_col]} matches)")
+
+                for line in all_lines:
+                    parts = line.strip().split("\t")
+                    if not parts or not parts[0]:
+                        continue
+                    og = parts[0]
+                    has_reference = False
+
+                    # Check non-target columns for reference species
+                    for i in range(1, len(parts)):
+                        if target_cols and i in target_cols:
+                            continue
+                        col_name = header[i].lower() if i < len(header) else ""
+                        if any(sp in col_name for sp in ['elegans', 'pacificus', 'malayi', 'ref']):
+                            if parts[i].strip():
+                                has_reference = True
+
+                    # Assign to all genes in target column(s), or check all columns if no target column could be identified
+                    cols_to_check = target_cols if target_cols else range(1, len(parts))
+                    for i in cols_to_check:
+                        if i >= len(parts):
+                            continue
                         for g in parts[i].split(","):
-                            g = normalize_id(g.strip())
-                            if g:
-                                tx_ortho_hit[g] = (og, has_reference)
+                            g_raw = g.strip()
+                            if not g_raw:
+                                continue
+                            g_norm = normalize_id(g_raw)
+                            # If no specific target column was identified, only map genes matching target_ids
+                            if not target_cols and target_ids and (g_raw not in target_ids and g_norm not in target_ids):
+                                continue
+                            tx_ortho_hit[g_raw] = (og, has_reference)
+                            tx_ortho_hit[g_norm] = (og, has_reference)
+
         print(f"Mapped {len(tx_ortho_hit)} transcripts to Orthogroups.")
 
     # 3. Diamond BLASTP Fallback / Complementary Homology
@@ -263,10 +391,20 @@ def main():
                 if len(parts) < 9:
                     continue
                 chrom = parts[0]
-                rep_type = parts[2].lower()
+                rep_type = extract_te_class(parts[2], parts[8])
                 start = int(parts[3])
                 end = int(parts[4])
                 earlgrey_intervals[chrom].append((start, end, rep_type))
+
+    # Pre-index Earl Grey repeat intervals by start coordinate for O(N log M) binary search
+    earlgrey_sorted = {}
+    earlgrey_starts = {}
+    earlgrey_max_len = {}
+    for chrom, ivals in earlgrey_intervals.items():
+        ivals.sort(key=lambda x: (x[0], x[1]))
+        earlgrey_sorted[chrom] = ivals
+        earlgrey_starts[chrom] = [x[0] for x in ivals]
+        earlgrey_max_len[chrom] = max((x[1] - x[0] + 1 for x in ivals), default=0)
 
     # 6. Satellite Arrays Overlap Calculation
     satellite_intervals = defaultdict(list)
@@ -289,6 +427,16 @@ def main():
                     end = int(parts[2])
                 satellite_intervals[chrom].append((start, end))
 
+    # Pre-index satellite intervals by start coordinate for O(N log M) binary search
+    satellite_sorted = {}
+    satellite_starts = {}
+    satellite_max_len = {}
+    for chrom, ivals in satellite_intervals.items():
+        ivals.sort(key=lambda x: (x[0], x[1]))
+        satellite_sorted[chrom] = ivals
+        satellite_starts[chrom] = [x[0] for x in ivals]
+        satellite_max_len[chrom] = max((x[1] - x[0] + 1 for x in ivals), default=0)
+
     # Evaluate Each Gene Model
     scored_models = []
     tier_counts = {1: 0, 2: 0, 3: 0, 4: 0}
@@ -309,31 +457,50 @@ def main():
         unknown_overlap_bp = 0
         overlapping_te_classes = set()
 
-        for c_start, c_end in cds_list:
-            for r_start, r_end, r_type in earlgrey_intervals.get(chrom, []):
-                # Check overlap
-                ov_s = max(c_start, r_start)
-                ov_e = min(c_end, r_end)
-                if ov_s <= ov_e:
-                    ov_len = ov_e - ov_s + 1
-                    is_defined_te = any(cls in r_type for cls in DEFINED_TE_CLASSES)
-                    if is_defined_te:
-                        te_overlap_bp += ov_len
-                        overlapping_te_classes.add(r_type)
-                    else:
-                        unknown_overlap_bp += ov_len
+        if chrom in earlgrey_sorted:
+            eg_ivals = earlgrey_sorted[chrom]
+            eg_starts = earlgrey_starts[chrom]
+            eg_max_len = earlgrey_max_len[chrom]
+
+            for c_start, c_end in cds_list:
+                i_left = bisect.bisect_left(eg_starts, c_start - eg_max_len)
+                i_right = bisect.bisect_right(eg_starts, c_end)
+
+                for i in range(i_left, i_right):
+                    r_start, r_end, r_type = eg_ivals[i]
+                    if r_end >= c_start:
+                        ov_s = max(c_start, r_start)
+                        ov_e = min(c_end, r_end)
+                        if ov_s <= ov_e:
+                            ov_len = ov_e - ov_s + 1
+                            is_defined_te = any(cls in r_type for cls in DEFINED_TE_CLASSES)
+                            if is_defined_te:
+                                te_overlap_bp += ov_len
+                                overlapping_te_classes.add(r_type)
+                            else:
+                                unknown_overlap_bp += ov_len
 
         te_pct = (te_overlap_bp / total_cds_bp * 100.0) if total_cds_bp > 0 else 0.0
         unk_pct = (unknown_overlap_bp / total_cds_bp * 100.0) if total_cds_bp > 0 else 0.0
 
         # B. Satellite overlap
         sat_overlap_bp = 0
-        for c_start, c_end in cds_list:
-            for s_start, s_end in satellite_intervals.get(chrom, []):
-                ov_s = max(c_start, s_start)
-                ov_e = min(c_end, s_end)
-                if ov_s <= ov_e:
-                    sat_overlap_bp += (ov_e - ov_s + 1)
+        if chrom in satellite_sorted:
+            sat_ivals = satellite_sorted[chrom]
+            sat_starts_list = satellite_starts[chrom]
+            sat_m_len = satellite_max_len[chrom]
+
+            for c_start, c_end in cds_list:
+                i_left = bisect.bisect_left(sat_starts_list, c_start - sat_m_len)
+                i_right = bisect.bisect_right(sat_starts_list, c_end)
+
+                for i in range(i_left, i_right):
+                    s_start, s_end = sat_ivals[i]
+                    if s_end >= c_start:
+                        ov_s = max(c_start, s_start)
+                        ov_e = min(c_end, s_end)
+                        if ov_s <= ov_e:
+                            sat_overlap_bp += (ov_e - ov_s + 1)
         sat_pct = (sat_overlap_bp / total_cds_bp * 100.0) if total_cds_bp > 0 else 0.0
 
         # C. Evidence Scoring Computation
@@ -342,15 +509,21 @@ def main():
 
         # 1. Homology Score (OrthoFinder / Diamond)
         has_nematode_orthology = False
-        if norm_tx in tx_ortho_hit:
-            og, has_ref = tx_ortho_hit[norm_tx]
+        ortho_data = (
+            tx_ortho_hit.get(norm_tx)
+            or tx_ortho_hit.get(tx_id)
+            or tx_ortho_hit.get(gene_id)
+            or tx_ortho_hit.get(normalize_id(gene_id))
+        )
+        if ortho_data:
+            og, has_ref = ortho_data
             if has_ref:
                 score += 35.0
                 has_nematode_orthology = True
                 reasons.append(f"OrthoFinder_RefOrtholog({og})[+35]")
             else:
                 score += 10.0
-                reasons.append(f"OrthoFinder_AuanemaOrtholog({og})[+10]")
+                reasons.append(f"OrthoFinder_LineageOrtholog({og})[+10]")
         elif norm_tx in tx_diamond_hit:
             hit = tx_diamond_hit[norm_tx]
             if hit['evalue'] < 1e-10:
