@@ -60,12 +60,12 @@ process EARLGREY {
         fi
     done
 
-    printf '   SW   perc perc perc  query  position in query   matching  repeat  position in repeat\\n' > /tmp/earlgrey_preflight.out
-    printf '    1    0.0  0.0  0.0  ctg_1  1  10  (0) +  Simple  1  10  (0)\\n' >> /tmp/earlgrey_preflight.out
-    if ! rmOutToGFF3.pl /tmp/earlgrey_preflight.out > /dev/null 2> /tmp/earlgrey_preflight.err; then
+    printf '   SW   perc perc perc  query  position in query   matching  repeat  position in repeat\\n' > ./earlgrey_preflight.out
+    printf '    1    0.0  0.0  0.0  ctg_1  1  10  (0) +  Simple  1  10  (0)\\n' >> ./earlgrey_preflight.out
+    if ! rmOutToGFF3.pl ./earlgrey_preflight.out > /dev/null 2> ./earlgrey_preflight.err; then
         echo "FATAL: rmOutToGFF3.pl cannot run, so EarlGrey would fail at defragmentation."
         echo "       CrossmatchSearchEngine.pm is not on @INC (PERL5LIB=\${PERL5LIB:-unset})."
-        head -3 /tmp/earlgrey_preflight.err
+        head -3 ./earlgrey_preflight.err
         fail=1
     fi
 

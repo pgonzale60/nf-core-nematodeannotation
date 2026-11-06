@@ -27,7 +27,7 @@ process SATELLITEPROFILER {
     def gap_val = max_gap ?: 100
 
     """
-    # Tool: satellite_profiler.py | Script-SHA: 3d80096bbae9f61f
+    # Tool: satellite_profiler.py | Script-SHA: 2173cb1b427a3853
     python3 ${moduleDir}/resources/usr/bin/satellite_profiler.py \\
         --bed "${bed}" \\
         --centroids "${centroids}" \\

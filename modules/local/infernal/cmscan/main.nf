@@ -24,7 +24,16 @@ process INFERNAL_CMSCAN {
     def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    # Tool: cmscan_to_gff3.py | Script-SHA: b3794b7cad738edd
+    # Stage pre-pressed Infernal .i1* index files if present alongside host cmfile
+    REAL_CM=\$(readlink -f "${cmfile}" 2>/dev/null || true)
+    if [ -n "\$REAL_CM" ]; then
+        for ext in i1m i1i i1f i1p; do
+            if [ -f "\${REAL_CM}.\${ext}" ] && [ ! -f "${cmfile}.\${ext}" ]; then
+                ln -sf "\${REAL_CM}.\${ext}" "${cmfile}.\${ext}"
+            fi
+        done
+    fi
+
     # Press cmfile if cmpress files not present
     if [ ! -f "${cmfile}.i1m" ]; then
         cmpress "${cmfile}"
