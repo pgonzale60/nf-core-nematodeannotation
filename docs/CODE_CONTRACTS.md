@@ -177,7 +177,7 @@
 | `SAMTOOLS_MERGE` | `modules/local/samtools/merge/main.nf` | `tuple val(meta), path(input_files, stageAs: "?/*"), path(index_files, stageAs: "?/*")`<br>`tuple val(meta2), path(fasta), path(fai), path(gzi)`<br>`val index_format` | `tuple val(meta), path("*.bam"), optional: true, emit: bam`<br>`tuple val(meta), path("*.cram"), optional: true, emit: cram`<br>`tuple val(meta), path("*.{bai,crai,csi}"), optional: true, emit: index`<br>`tuple val("${task.process}"), val('samtools'), eval("samtools version \| sed '1!d;s/.* //'"), topic: versions, emit: versions_samtools` |
 | `SATELLITEFILTER` | `modules/local/satellitefilter/main.nf` | `tuple val(meta), path(dat_files)`<br>`val min_period`<br>`val min_copies`<br>`val min_identity` | `tuple val(meta), path("*_filtered_units.fa"), emit: fasta`<br>`tuple val(meta), path("*_trf_summary.tsv") , emit: summary, optional: true`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
 | `SATELLITEPROFILER` | `modules/local/satelliteprofiler/main.nf` | `tuple val(meta), path(bed), path(centroids)`<br>`val max_gap` | `tuple val(meta), path("*_satellite_arrays.gff3") , emit: arrays_gff3`<br>`tuple val(meta), path("*_satellite_monomers.gff3"), emit: monomers_gff3`<br>`tuple val(meta), path("*_satellite_families.tsv") , emit: families_tsv`<br>`tuple val(meta), path("*_satellite_monomers.fasta"), emit: library_fasta`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
-| `SELECTBESTMODEL` | `modules/local/selectbestmodel/main.nf` | `tuple val(meta), val(labels), path(gtfs), path(aas)`<br>`val val_busco_lineage`<br>`path busco_lineages_path` | `tuple val(meta), path("${prefix}.gtf"), emit: representative_gtf`<br>`tuple val(meta), path("${prefix}.aa"), emit: representative_aa`<br>`tuple val(meta), path("${prefix}_decision.tsv"), emit: decision_tsv`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
+| `SELECTBESTMODEL` | `modules/local/selectbestmodel/main.nf` | `tuple val(meta), val(labels), path(gtfs), path(aas)`<br>`val val_busco_lineage`<br>`val busco_lineages_path` | `tuple val(meta), path("${prefix}.gtf"), emit: representative_gtf`<br>`tuple val(meta), path("${prefix}.aa"), emit: representative_aa`<br>`tuple val(meta), path("${prefix}_decision.tsv"), emit: decision_tsv`<br>`tuple val(meta), path("${prefix}_busco_full_table.tsv"), emit: representative_busco_full_table`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
 | `HISAT2_ALIGN_SOFTCLIP` | `modules/local/slidr/alignreads/main.nf` | `tuple val(meta), path(reads)`<br>`tuple val(meta2), path(index)` | `tuple val(meta), path("*.bam") , emit: bam`<br>`tuple val(meta), path("*.bam.bai") , emit: bai`<br>`tuple val(meta), path("*.hisat2.log") , emit: log`<br>`tuple val("${task.process}"), val('hisat2'), eval("hisat2 --version \| sed -n '1s/.*version //p'"), topic: versions, emit: versions_hisat2`<br>`tuple val("${task.process}"), val('samtools'), eval("samtools --version \| sed -n '1s/samtools //p'"), topic: versions, emit: versions_samtools` |
 | `SLIDR_CLUSTERTAILS` | `modules/local/slidr/clustertails/main.nf` | `tuple val(meta), path(tails)`<br>`val min_len` | `tuple val(meta), path("${prefix}_centroids.fa") , emit: centroids`<br>`tuple val(meta), path("${prefix}_cluster_summary.tsv"), emit: summary`<br>`tuple val(meta), path("${prefix}_readinfo.tsv.gz") , emit: readinfo`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
 | `SLIDR_CONSENSUS` | `modules/local/slidr/consensus/main.nf` | `tuple val(meta), path(sites)`<br>`path readinfo`<br>`path slrnas`<br>`path rrna_gff`<br>`path rfam_gff`<br>`val min_support`<br>`val acceptor`<br>`val max_leader_gene_distance`<br>`val rrna_flank` | `tuple val(meta), path("*_sl_acceptor_sites.bed") , emit: bed`<br>`tuple val(meta), path("*_sl_acceptor_sites.gff3"), emit: gff`<br>`tuple val(meta), path("*_sl_summary.tsv") , emit: summary`<br>`tuple val(meta), path("*_sl_sequences.fa") , emit: sl_fasta`<br>`tuple val(meta), path("*_sl_site_pool.tsv") , emit: site_pool`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
@@ -201,15 +201,21 @@
 
 | Contract File | Producer Module | Consumer Module(s) | Columns / Fields | Status Column | Allowed Statuses |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `decision.tsv` | `SELECTBESTMODEL` | `SUBOPTIMAL_MODELS` | `Rank`, `Candidate`, `BUSCO_Complete_Pct`, `Summary`, `Status`, `GTF_Path`, `AA_Path` | `Status` | `SELECTED`, `REJECTED` |
+| `tournament_decision.tsv` | `SELECTBESTMODEL` | `SUBOPTIMAL_MODELS`, `CURATION_DELIVERABLES` | `Rank`, `Candidate`, `BUSCO_Complete_Pct`, `Summary`, `Longest_Isoform_BUSCO_Complete_Pct`, `Longest_Isoform_Summary`, `Status`, `GTF_Path`, `AA_Path` | `Status` | `SELECTED`, `REJECTED` |
+| `decision.tsv` | `SELECTBESTMODEL` | `SUBOPTIMAL_MODELS`, `CURATION_DELIVERABLES` | `Rank`, `Candidate`, `BUSCO_Complete_Pct`, `Summary`, `Longest_Isoform_BUSCO_Complete_Pct`, `Longest_Isoform_Summary`, `Status`, `GTF_Path`, `AA_Path` | `Status` | `SELECTED`, `REJECTED` |
+| `busco_full_table.tsv` | `SELECTBESTMODEL` | `CURATION_DELIVERABLES` | `# Busco id`, `Status`, `Sequence`, `Score`, `Length` | `Status` | `Complete`, `Single`, `Duplicated`, `Fragmented`, `Missing` |
 | `gene_te_scores.tsv` | `TESCORER` | `CURATION_DELIVERABLES` | `transcript_id`, `gene_id`, `chrom`, `start`, `end`, `strand`, `exons`, `cds_bp`, `score`, `tier`, `tier_name`, `te_overlap_pct`, `unknown_overlap_pct`, `sat_overlap_pct`, `te_classes`, `te_domains`, `host_domains_count`, `evidence_reasons` | `tier_name` | `Confirmed_Host`, `Putative_Host`, `Ambiguous_TE_Derived`, `Definitive_TE` |
-| `operons_summary.tsv` | `SLOPPR_OPERONS` | `TESCORER` | `operon_id`, `chrom`, `strand`, `start`, `end`, `num_cistrons`, `cistron_ids` | — | — |
-| `satellite_families.tsv` | `SATELLITEPROFILER` | `TESCORER` | `family_id`, `centroid_id`, `monomer_length_bp`, `gc_percent`, `total_coverage_bp`, `copy_count`, `array_count` | — | — |
+| `te_summary.tsv` | `TESCORER` | `CURATION_DELIVERABLES` | `transcript_id`, `gene_id`, `chrom`, `start`, `end`, `strand`, `exons`, `cds_bp`, `score`, `tier`, `tier_name`, `te_overlap_pct`, `unknown_overlap_pct`, `sat_overlap_pct`, `te_classes`, `te_domains`, `host_domains_count`, `evidence_reasons` | `tier_name` | `Confirmed_Host`, `Putative_Host`, `Ambiguous_TE_Derived`, `Definitive_TE` |
+| `operons_summary.tsv` | `SLOPPR_OPERONS` | `TESCORER`, `CURATION_DELIVERABLES` | `operon_id`, `chrom`, `strand`, `start`, `end`, `num_cistrons`, `cistron_ids` | — | — |
+| `operons.tsv` | `SLOPPR_OPERONS` | `TESCORER`, `CURATION_DELIVERABLES` | `operon_id`, `chrom`, `strand`, `start`, `end`, `num_cistrons`, `cistron_ids` | — | — |
+| `satellite_families.tsv` | `SATELLITEPROFILER` | `TESCORER`, `CURATION_DELIVERABLES` | `family_id`, `centroid_id`, `monomer_length_bp`, `gc_percent`, `total_coverage_bp`, `copy_count`, `array_count` | — | — |
+| `satellite_summary.tsv` | `SATELLITEPROFILER` | `TESCORER`, `CURATION_DELIVERABLES` | `family_id`, `centroid_id`, `monomer_length_bp`, `gc_percent`, `total_coverage_bp`, `copy_count`, `array_count` | — | — |
 | `trf_summary.tsv` | `SATELLITEFILTER` | `SATELLITEPROFILER` | `seq_id`, `start`, `end`, `period`, `copies`, `pct_matches`, `score`, `consensus_len`, `consensus_seq` | — | — |
 | `cluster_summary.tsv` | `SLIDR_CLUSTERTAILS` | `SLIDR_CONSENSUS` | `centroid_id`, `sequence`, `reads`, `unique_tails`, `length` | — | — |
 | `readinfo.tsv.gz` | `SLIDR_CLUSTERTAILS` | `SLIDR_CONSENSUS` | `read_id`, `centroid_id` | — | — |
-| `sl_summary.tsv` | `SLIDR_CONSENSUS` | `SLOPPR_OPERONS` | `sl_name`, `consensus`, `length`, `reads`, `acceptor_sites`, `leader_RNA_genes`, `rfam_validation` | — | — |
+| `sl_summary.tsv` | `SLIDR_CONSENSUS` | `SLOPPR_OPERONS`, `CURATION_DELIVERABLES` | `sl_name`, `consensus`, `length`, `reads`, `acceptor_sites`, `leader_RNA_genes`, `family`, `rfam_validation` | — | — |
 | `sl_site_pool.tsv` | `SLIDR_CONSENSUS` | `SLIDR_TSSEXPORTER` | `chrom`, `pos`, `strand`, `reads`, `n_libraries`, `n_centroids`, `top_tail`, `top_tail_reads` | — | — |
+| `sl_acceptor_sites.bed` | `SLIDR_CONSENSUS` | `SLOPPR_OPERONS`, `CURATION_DELIVERABLES` | `chrom`, `chromStart`, `chromEnd`, `name`, `score`, `strand` | — | — |
 | `acceptor_sites.tsv.gz` | `SLIDR_EXTRACTTAILS` | `SLIDR_CONSENSUS` | `read_id`, `chrom`, `junction_pos_0based`, `junction_pos_1based`, `strand`, `tail_type`, `clip_len`, `tail_seq`, `genomic_dinuc`, `is_canonical_ag` | — | — |
 | `sl_rna_candidates.tsv` | `SLIDR_SLRNAFILTER` | `SLIDR_CONSENSUS` | `centroid_id`, `chrom`, `sl_start`, `sl_end`, `strand`, `sl_seq`, `donor_motif`, `sm_motif`, `sl_rna_seq` | — | — |
 | `tss_metrics.tsv` | `SLIDR_TSSEXPORTER` | `QC_DELIVERABLES` | `metric`, `count` | — | — |
@@ -254,8 +260,12 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `run_busco_on_fasta` | `function` | `L14-L98` | `def run_busco_on_fasta(fasta_path, candidate_name, lineage, lineage_dir, cpus)` | Run offline protein BUSCO and return complete percentage. |
-| `main` | `function` | `L100-L168` | `def main()` | — |
+| `parse_fasta_lengths` | `function` | `L17-L38` | `def parse_fasta_lengths(fasta_path)` | Parse protein FASTA file and return a dictionary of {sequence_id: length}. |
+| `parse_gtf_gene_transcripts` | `function` | `L41-L118` | `def parse_gtf_gene_transcripts(gtf_path)` | Parse candidate GTF (or GFF3) to build: |
+| `get_longest_isoform_per_gene` | `function` | `L121-L151` | `def get_longest_isoform_per_gene(gtf_path, fasta_path)` | Determine the longest protein isoform for each gene. |
+| `calculate_longest_isoform_busco` | `function` | `L154-L267` | `def calculate_longest_isoform_busco(full_table_path, longest_isoforms, transcript_to_gene)` | Parse BUSCO full_table.tsv, filter hits to retain only the longest protein isoform |
+| `run_busco_on_fasta` | `function` | `L270-L365` | `def run_busco_on_fasta(fasta_path, candidate_name, lineage, lineage_dir, cpus)` | Run offline protein BUSCO and return (complete_percentage, summary_str, saved_full_table_path). |
+| `main` | `function` | `L368-L472` | `def main()` | — |
 
 ### `modules/local/slidr/clustertails/resources/usr/bin/slidr_cluster_tails.py`
 
@@ -280,9 +290,11 @@
 | `is_in_rrna` | `function` | `L192-L201` | `def is_in_rrna(chrom: str, pos_0based: int, rrna_intervals: Dict[str, List[List[int]]]) -> bool` | Check if a coordinate falls inside any expanded rRNA/rDNA interval. |
 | `load_sites` | `function` | `L204-L289` | `def load_sites(paths: List[str], readinfo: Dict[str, str], leaders: Dict[str, List[dict]], acceptor: str, max_dist: int, rrna_intervals: Optional[Dict[str, List[List[int]]]]=None)` | Stream every per-library site table, keeping only reads that can be |
 | `cluster_consensus` | `function` | `L292-L308` | `def cluster_consensus(tails: List[str]) -> Tuple[str, int]` | Majority-length consensus, ported from the tested implementation. |
-| `main` | `function` | `L311-L490` | `def main()` | — |
-| `load_rfam_sl_loci` | `function` | `L491-L522` | `def load_rfam_sl_loci(path: Optional[str]) -> List[dict]` | Load curated/predicted SL loci from Rfam cmscan GFF3 (e.g. RF00198 for SL1, RF00199 for SL2). |
-| `annotate_with_rfam` | `function` | `L525-L536` | `def annotate_with_rfam(reportable: List[dict], rfam_loci: List[dict], max_overlap_dist: int=200)` | Cross-reference discovered leaders against Rfam SL loci. |
+| `is_adapter_contaminated` | `function` | `L311-L324` | `def is_adapter_contaminated(seq: str) -> bool` | Check if sequence contains common Illumina/sequencing adapter artifacts. |
+| `classify_sl_family` | `function` | `L327-L347` | `def classify_sl_family(seq: str) -> str` | Classify spliced leader sequence into biological families based on 3' conserved core motif. |
+| `main` | `function` | `L350-L619` | `def main()` | — |
+| `load_rfam_sl_loci` | `function` | `L620-L651` | `def load_rfam_sl_loci(path: Optional[str]) -> List[dict]` | Load curated/predicted SL loci from Rfam cmscan GFF3 (e.g. RF00198 for SL1, RF00199 for SL2). |
+| `annotate_with_rfam` | `function` | `L654-L665` | `def annotate_with_rfam(reportable: List[dict], rfam_loci: List[dict], max_overlap_dist: int=200)` | Cross-reference discovered leaders against Rfam SL loci. |
 
 ### `modules/local/slidr/extracttails/resources/usr/bin/slidr_extract_tails.py`
 
@@ -323,9 +335,11 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `parse_gff_genes` | `function` | `L17-L59` | `def parse_gff_genes(gff_path: str) -> List[dict]` | Parse gene models from GFF3 / GTF. |
-| `parse_sl_bed` | `function` | `L62-L86` | `def parse_sl_bed(bed_path: str) -> List[dict]` | Parse BED6 trans-splice sites. |
-| `main` | `function` | `L89-L248` | `def main()` | — |
+| `classify_sl_family` | `function` | `L19-L38` | `def classify_sl_family(seq: str) -> str` | Classify spliced leader sequence into biological families based on 3' conserved core motif: |
+| `load_leader_family_map` | `function` | `L41-L81` | `def load_leader_family_map(fasta_path: Optional[str]=None, summary_path: Optional[str]=None) -> Dict[str, str]` | Load mapping of leader name -> biological family from FASTA or summary TSV. |
+| `parse_gff_genes` | `function` | `L84-L187` | `def parse_gff_genes(gff_path: str) -> List[dict]` | Parse deduplicated canonical gene models from GFF3 / GTF. |
+| `parse_sl_bed` | `function` | `L190-L239` | `def parse_sl_bed(bed_path: str, leader_family_map: Optional[Dict[str, str]]=None) -> List[dict]` | Parse BED6 trans-splice sites with biological leader classification. |
+| `main` | `function` | `L242-L440` | `def main()` | — |
 
 ### `modules/local/tescorer/resources/usr/bin/prep_longest_orthofinder.py`
 *(No top-level functions or classes defined.)*
@@ -345,12 +359,12 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `extract_tsv_header_from_file` | `function` | `L37-L44` | `def extract_tsv_header_from_file(file_path: Path, pattern: str) -> list[str]` | Extract column list from write/write_header pattern in source code. |
 | `extract_list_literal` | `function` | `L47-L55` | `def extract_list_literal(file_path: Path, pattern: str) -> list[str]` | Extract list of string literals from python source. |
-| `verify_schemas_structure` | `function` | `L58-L93` | `def verify_schemas_structure() -> dict` | Validate existence, JSON syntax, and key requirements for schema files. |
-| `verify_live_code_contracts` | `function` | `L96-L305` | `def verify_live_code_contracts(tsv_contracts: dict) -> None` | Verify live Python module code against contract column specifications. |
-| `parse_stub_cols` | `function` | `L308-L310` | `def parse_stub_cols(raw: str) -> list[str]` | — |
-| `verify_module_stub_contracts` | `function` | `L313-L417` | `def verify_module_stub_contracts(tsv_contracts: dict) -> None` | Verify stub blocks in modules emit schema-compliant headers and files. |
-| `verify_extract_and_stamp_tools` | `function` | `L420-L431` | `def verify_extract_and_stamp_tools() -> None` | Verify that extract_code_contracts.py --check and stamp_module_shas.py --check exit 0. |
-| `main` | `function` | `L434-L440` | `def main() -> int` | — |
+| `verify_schemas_structure` | `function` | `L58-L99` | `def verify_schemas_structure() -> dict` | Validate existence, JSON syntax, and key requirements for schema files. |
+| `verify_live_code_contracts` | `function` | `L102-L325` | `def verify_live_code_contracts(tsv_contracts: dict) -> None` | Verify live Python module code against contract column specifications. |
+| `parse_stub_cols` | `function` | `L328-L330` | `def parse_stub_cols(raw: str) -> list[str]` | — |
+| `verify_module_stub_contracts` | `function` | `L333-L443` | `def verify_module_stub_contracts(tsv_contracts: dict) -> None` | Verify stub blocks in modules emit schema-compliant headers and files. |
+| `verify_extract_and_stamp_tools` | `function` | `L446-L457` | `def verify_extract_and_stamp_tools() -> None` | Verify that extract_code_contracts.py --check and stamp_module_shas.py --check exit 0. |
+| `main` | `function` | `L460-L466` | `def main() -> int` | — |
 
 ### `scripts/check_no_time_directives.py`
 

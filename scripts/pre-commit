@@ -4,11 +4,12 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "${REPO_ROOT}"
 
-# Check if any Python or schema files are staged
+# Check if any Nextflow, Python, or schema files are staged
+STAGED_NF="$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.nf$' || true)"
 STAGED_PY="$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.py$' || true)"
 STAGED_SCHEMAS="$(git diff --cached --name-only --diff-filter=ACMR | grep -E 'assets/schemas/.*\.json$' || true)"
 
-if [[ -n "${STAGED_PY}" || -n "${STAGED_SCHEMAS}" ]]; then
+if [[ -n "${STAGED_PY}" || -n "${STAGED_SCHEMAS}" || -n "${STAGED_NF}" ]]; then
     echo "[pre-commit] 1/4 Checking Python syntax & escape sequences (-W error)..."
     if [[ -n "${STAGED_PY}" ]]; then
         # shellcheck disable=SC2086

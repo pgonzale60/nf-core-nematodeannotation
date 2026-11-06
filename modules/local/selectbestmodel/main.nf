@@ -55,7 +55,7 @@ process SELECTBESTMODEL {
     """
     touch "${prefix}.gtf"
     touch "${prefix}.aa"
-    printf "Rank\\tCandidate\\tBUSCO_Complete_Pct\\tSummary\\tStatus\\tGTF_Path\\tAA_Path\\n" > "${prefix}_decision.tsv"
-    touch "${prefix}_busco_full_table.tsv"
+    printf "Rank\\tCandidate\\tBUSCO_Complete_Pct\\tSummary\\tLongest_Isoform_BUSCO_Complete_Pct\\tLongest_Isoform_Summary\\tStatus\\tGTF_Path\\tAA_Path\\n" > "${prefix}_decision.tsv"
+    printf "# Busco id\\tStatus\\tSequence\\tScore\\tLength\\n" > "${prefix}_busco_full_table.tsv"
     """
 }

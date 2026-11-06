@@ -2,18 +2,22 @@
   "schema_version": "1.0.0",
   "description": "Authoritative inter-module TSV and tabular data contracts across nf-core/nematodeannotation pipeline.",
   "contracts": {
-    "decision.tsv": {
+    "tournament_decision.tsv": {
       "file_pattern": "*_decision.tsv",
+      "published_name": "tournament_decision.tsv",
       "producer_module": "SELECTBESTMODEL",
       "producer_script": "modules/local/selectbestmodel/resources/usr/bin/select_best_annotation.py",
       "consumer_modules": [
-        "SUBOPTIMAL_MODELS"
+        "SUBOPTIMAL_MODELS",
+        "CURATION_DELIVERABLES"
       ],
       "columns": [
         "Rank",
         "Candidate",
         "BUSCO_Complete_Pct",
         "Summary",
+        "Longest_Isoform_BUSCO_Complete_Pct",
+        "Longest_Isoform_Summary",
         "Status",
         "GTF_Path",
         "AA_Path"
@@ -24,8 +28,95 @@
         "REJECTED"
       ]
     },
+    "decision.tsv": {
+      "file_pattern": "*_decision.tsv",
+      "published_name": "tournament_decision.tsv",
+      "producer_module": "SELECTBESTMODEL",
+      "producer_script": "modules/local/selectbestmodel/resources/usr/bin/select_best_annotation.py",
+      "consumer_modules": [
+        "SUBOPTIMAL_MODELS",
+        "CURATION_DELIVERABLES"
+      ],
+      "columns": [
+        "Rank",
+        "Candidate",
+        "BUSCO_Complete_Pct",
+        "Summary",
+        "Longest_Isoform_BUSCO_Complete_Pct",
+        "Longest_Isoform_Summary",
+        "Status",
+        "GTF_Path",
+        "AA_Path"
+      ],
+      "status_column": "Status",
+      "allowed_statuses": [
+        "SELECTED",
+        "REJECTED"
+      ]
+    },
+    "busco_full_table.tsv": {
+      "file_pattern": "*_busco_full_table.tsv",
+      "published_name": "busco_full_table.tsv",
+      "producer_module": "SELECTBESTMODEL",
+      "producer_script": "modules/local/selectbestmodel/resources/usr/bin/select_best_annotation.py",
+      "consumer_modules": [
+        "CURATION_DELIVERABLES"
+      ],
+      "columns": [
+        "# Busco id",
+        "Status",
+        "Sequence",
+        "Score",
+        "Length"
+      ],
+      "status_column": "Status",
+      "allowed_statuses": [
+        "Complete",
+        "Single",
+        "Duplicated",
+        "Fragmented",
+        "Missing"
+      ]
+    },
     "gene_te_scores.tsv": {
       "file_pattern": "*.gene_te_scores.tsv",
+      "published_name": "te_summary.tsv",
+      "producer_module": "TESCORER",
+      "producer_script": "modules/local/tescorer/resources/usr/bin/te_scorer.py",
+      "consumer_modules": [
+        "CURATION_DELIVERABLES"
+      ],
+      "columns": [
+        "transcript_id",
+        "gene_id",
+        "chrom",
+        "start",
+        "end",
+        "strand",
+        "exons",
+        "cds_bp",
+        "score",
+        "tier",
+        "tier_name",
+        "te_overlap_pct",
+        "unknown_overlap_pct",
+        "sat_overlap_pct",
+        "te_classes",
+        "te_domains",
+        "host_domains_count",
+        "evidence_reasons"
+      ],
+      "status_column": "tier_name",
+      "allowed_statuses": [
+        "Confirmed_Host",
+        "Putative_Host",
+        "Ambiguous_TE_Derived",
+        "Definitive_TE"
+      ]
+    },
+    "te_summary.tsv": {
+      "file_pattern": "*.gene_te_scores.tsv",
+      "published_name": "te_summary.tsv",
       "producer_module": "TESCORER",
       "producer_script": "modules/local/tescorer/resources/usr/bin/te_scorer.py",
       "consumer_modules": [
@@ -61,10 +152,31 @@
     },
     "operons_summary.tsv": {
       "file_pattern": "*_operons_summary.tsv",
+      "published_name": "operons.tsv",
       "producer_module": "SLOPPR_OPERONS",
       "producer_script": "modules/local/sloppr/operons/resources/usr/bin/sloppr_operons.py",
       "consumer_modules": [
-        "TESCORER"
+        "TESCORER",
+        "CURATION_DELIVERABLES"
+      ],
+      "columns": [
+        "operon_id",
+        "chrom",
+        "strand",
+        "start",
+        "end",
+        "num_cistrons",
+        "cistron_ids"
+      ]
+    },
+    "operons.tsv": {
+      "file_pattern": "*_operons_summary.tsv",
+      "published_name": "operons.tsv",
+      "producer_module": "SLOPPR_OPERONS",
+      "producer_script": "modules/local/sloppr/operons/resources/usr/bin/sloppr_operons.py",
+      "consumer_modules": [
+        "TESCORER",
+        "CURATION_DELIVERABLES"
       ],
       "columns": [
         "operon_id",
@@ -78,10 +190,31 @@
     },
     "satellite_families.tsv": {
       "file_pattern": "*_satellite_families.tsv",
+      "published_name": "satellite_summary.tsv",
       "producer_module": "SATELLITEPROFILER",
       "producer_script": "modules/local/satelliteprofiler/resources/usr/bin/satellite_profiler.py",
       "consumer_modules": [
-        "TESCORER"
+        "TESCORER",
+        "CURATION_DELIVERABLES"
+      ],
+      "columns": [
+        "family_id",
+        "centroid_id",
+        "monomer_length_bp",
+        "gc_percent",
+        "total_coverage_bp",
+        "copy_count",
+        "array_count"
+      ]
+    },
+    "satellite_summary.tsv": {
+      "file_pattern": "*_satellite_families.tsv",
+      "published_name": "satellite_summary.tsv",
+      "producer_module": "SATELLITEPROFILER",
+      "producer_script": "modules/local/satelliteprofiler/resources/usr/bin/satellite_profiler.py",
+      "consumer_modules": [
+        "TESCORER",
+        "CURATION_DELIVERABLES"
       ],
       "columns": [
         "family_id",
@@ -144,7 +277,8 @@
       "producer_module": "SLIDR_CONSENSUS",
       "producer_script": "modules/local/slidr/consensus/resources/usr/bin/slidr_consensus.py",
       "consumer_modules": [
-        "SLOPPR_OPERONS"
+        "SLOPPR_OPERONS",
+        "CURATION_DELIVERABLES"
       ],
       "columns": [
         "sl_name",
@@ -153,6 +287,7 @@
         "reads",
         "acceptor_sites",
         "leader_RNA_genes",
+        "family",
         "rfam_validation"
       ]
     },
@@ -172,6 +307,23 @@
         "n_centroids",
         "top_tail",
         "top_tail_reads"
+      ]
+    },
+    "sl_acceptor_sites.bed": {
+      "file_pattern": "*_sl_acceptor_sites.bed",
+      "producer_module": "SLIDR_CONSENSUS",
+      "producer_script": "modules/local/slidr/consensus/resources/usr/bin/slidr_consensus.py",
+      "consumer_modules": [
+        "SLOPPR_OPERONS",
+        "CURATION_DELIVERABLES"
+      ],
+      "columns": [
+        "chrom",
+        "chromStart",
+        "chromEnd",
+        "name",
+        "score",
+        "strand"
       ]
     },
     "acceptor_sites.tsv.gz": {
