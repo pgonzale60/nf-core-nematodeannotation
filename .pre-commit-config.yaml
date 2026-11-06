@@ -64,6 +64,12 @@ repos:
         language: system
         files: 'modules/.*/resources/usr/(bin|lib)/.*\.py$'
         pass_filenames: false
+      - id: check-data-contracts
+        name: Validate inter-module data contracts and schemas
+        entry: python3 scripts/check_data_contracts.py
+        language: system
+        files: '(\.nf|\.py|assets/schemas/.*\.json)$'
+        pass_filenames: false
       - id: extract-code-contracts
         name: Extract Nextflow topology and Python AST code contracts into docs/CODE_CONTRACTS.md
         entry: python3 scripts/extract_code_contracts.py --pre-commit

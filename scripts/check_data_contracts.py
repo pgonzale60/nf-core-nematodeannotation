@@ -72,15 +72,21 @@ def verify_schemas_structure() -> dict:
     assert isinstance(contracts, dict), f"'contracts' must be an object in {TSV_CONTRACTS_PATH}"
 
     expected_contracts = {
+        "tournament_decision.tsv",
         "decision.tsv",
+        "busco_full_table.tsv",
         "gene_te_scores.tsv",
+        "te_summary.tsv",
         "operons_summary.tsv",
+        "operons.tsv",
         "satellite_families.tsv",
+        "satellite_summary.tsv",
         "trf_summary.tsv",
         "cluster_summary.tsv",
         "readinfo.tsv.gz",
         "sl_summary.tsv",
         "sl_site_pool.tsv",
+        "sl_acceptor_sites.bed",
         "acceptor_sites.tsv.gz",
         "sl_rna_candidates.tsv",
         "tss_metrics.tsv",
@@ -97,7 +103,7 @@ def verify_live_code_contracts(tsv_contracts: dict) -> None:
     """Verify live Python module code against contract column specifications."""
     contracts = tsv_contracts["contracts"]
 
-    # 1. SELECTBESTMODEL (decision.tsv)
+    # 1. SELECTBESTMODEL (tournament_decision.tsv and busco_full_table.tsv)
     sbm_path = (
         REPO_ROOT
         / "modules"
@@ -108,16 +114,30 @@ def verify_live_code_contracts(tsv_contracts: dict) -> None:
         / "bin"
         / "select_best_annotation.py"
     )
-    sbm_cols = extract_tsv_header_from_file(sbm_path, r'write\("([^\n]+?\\t[^\n]+?)\\n"\)')
-    expected_sbm = contracts["decision.tsv"]["columns"]
-    assert sbm_cols == expected_sbm, (
-        f"Schema drift in {sbm_path}: code columns {sbm_cols} != contract columns {expected_sbm}"
-    )
     sbm_content = sbm_path.read_text(encoding="utf-8")
+
+    # tournament_decision.tsv / decision.tsv
+    m_dec = re.search(r'out_tsv[^\n]*\n\s*f\.write\("([^\n]+?)\\n"\)', sbm_content)
+    assert m_dec, f"Could not match decision header in {sbm_path}"
+    sbm_dec_cols = [c.strip() for c in m_dec.group(1).split(r"\t") if c.strip()]
+    expected_dec = contracts["tournament_decision.tsv"]["columns"]
+    assert sbm_dec_cols == expected_dec, (
+        f"Schema drift in {sbm_path} (decision): {sbm_dec_cols} != {expected_dec}"
+    )
+
+    # busco_full_table.tsv
+    m_busco = re.search(r'out_busco_table[^\n]*\n\s*f\.write\("([^\n]+?)\\n"\)', sbm_content)
+    assert m_busco, f"Could not match busco header in {sbm_path}"
+    sbm_busco_cols = [c.strip() for c in m_busco.group(1).split(r"\t") if c.strip()]
+    expected_busco = contracts["busco_full_table.tsv"]["columns"]
+    assert sbm_busco_cols == expected_busco, (
+        f"Schema drift in {sbm_path} (busco): {sbm_busco_cols} != {expected_busco}"
+    )
+
     assert '"SELECTED"' in sbm_content and '"REJECTED"' in sbm_content, (
         f"Expected statuses 'SELECTED' and 'REJECTED' not found in {sbm_path}"
     )
-    print("✓ SELECTBESTMODEL (decision.tsv) columns and statuses match live code.")
+    print("✓ SELECTBESTMODEL (tournament_decision.tsv & busco_full_table.tsv) match live code.")
 
     # 2. TESCORER (gene_te_scores.tsv)
     tesc_path = (
@@ -320,8 +340,14 @@ def verify_module_stub_contracts(tsv_contracts: dict) -> None:
     m_sbm = re.search(r'printf\s+"([^"]+)"\s*>\s*"\$\{prefix\}_decision\.tsv"', sbm_stub)
     assert m_sbm, f"Missing printf stub header in {sbm_main}"
     sbm_stub_cols = parse_stub_cols(m_sbm.group(1))
-    assert sbm_stub_cols == contracts["decision.tsv"]["columns"], (
-        f"Stub mismatch in {sbm_main}: {sbm_stub_cols} != {contracts['decision.tsv']['columns']}"
+    assert sbm_stub_cols == contracts["tournament_decision.tsv"]["columns"], (
+        f"Stub mismatch in {sbm_main}: {sbm_stub_cols} != {contracts['tournament_decision.tsv']['columns']}"
+    )
+    m_sbm_busco = re.search(r'printf\s+"([^"]+)"\s*>\s*"\$\{prefix\}_busco_full_table\.tsv"', sbm_stub)
+    assert m_sbm_busco, f"Missing printf stub header for busco full table in {sbm_main}"
+    sbm_busco_stub_cols = parse_stub_cols(m_sbm_busco.group(1))
+    assert sbm_busco_stub_cols == contracts["busco_full_table.tsv"]["columns"], (
+        f"Stub mismatch in {sbm_main}: {sbm_busco_stub_cols} != {contracts['busco_full_table.tsv']['columns']}"
     )
 
     # 2. TESCORER
