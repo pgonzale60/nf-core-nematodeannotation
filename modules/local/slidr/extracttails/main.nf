@@ -42,7 +42,7 @@ process SLIDR_EXTRACTTAILS {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     echo "" | gzip -c > ${prefix}.tails.fa.gz
-    echo "" | gzip -c > ${prefix}.acceptor_sites.tsv.gz
-    echo "{}" > ${prefix}.tail_stats.json
+    printf "read_id\\tchrom\\tjunction_pos_0based\\tjunction_pos_1based\\tstrand\\ttail_type\\tclip_len\\ttail_seq\\tgenomic_dinuc\\tis_canonical_ag\\n" | gzip -c > ${prefix}.acceptor_sites.tsv.gz
+    echo '{"total_processed_alignments":0,"extracted_sl_tails":0,"canonical_ag_tails":0,"canonical_ag_percentage":0.0,"unique_junction_sites":0,"min_tail_length":8,"strandedness":"0"}' > ${prefix}.tail_stats.json
     """
 }

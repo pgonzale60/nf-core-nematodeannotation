@@ -85,8 +85,8 @@ process SLIDR_CONSENSUS {
     """
     touch ${prefix}_sl_acceptor_sites.bed
     touch ${prefix}_sl_acceptor_sites.gff3
-    touch ${prefix}_sl_summary.tsv
+    printf "sl_name\\tconsensus\\tlength\\treads\\tacceptor_sites\\tleader_RNA_genes\\trfam_validation\\n" > ${prefix}_sl_summary.tsv
     touch ${prefix}_sl_sequences.fa
-    touch ${prefix}_sl_site_pool.tsv
+    printf "chrom\\tpos\\tstrand\\treads\\tn_libraries\\tn_centroids\\ttop_tail\\ttop_tail_reads\\n" > ${prefix}_sl_site_pool.tsv
     """
 }

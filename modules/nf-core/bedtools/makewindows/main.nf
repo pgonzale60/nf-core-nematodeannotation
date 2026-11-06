@@ -38,6 +38,6 @@ process BEDTOOLS_MAKEWINDOWS {
         error("Input and output names are the same, set prefix in module configuration to disambiguate!")
     }
     """
-    touch ${prefix}.bed
+    echo -e "chrI\\t0\\t1000" > ${prefix}.bed
     """
 }

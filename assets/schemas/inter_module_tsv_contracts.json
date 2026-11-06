@@ -1,0 +1,246 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Authoritative inter-module TSV and tabular data contracts across nf-core/nematodeannotation pipeline.",
+  "contracts": {
+    "decision.tsv": {
+      "file_pattern": "*_decision.tsv",
+      "producer_module": "SELECTBESTMODEL",
+      "producer_script": "modules/local/selectbestmodel/resources/usr/bin/select_best_annotation.py",
+      "consumer_modules": [
+        "SUBOPTIMAL_MODELS"
+      ],
+      "columns": [
+        "Rank",
+        "Candidate",
+        "BUSCO_Complete_Pct",
+        "Summary",
+        "Status",
+        "GTF_Path",
+        "AA_Path"
+      ],
+      "status_column": "Status",
+      "allowed_statuses": [
+        "SELECTED",
+        "REJECTED"
+      ]
+    },
+    "gene_te_scores.tsv": {
+      "file_pattern": "*.gene_te_scores.tsv",
+      "producer_module": "TESCORER",
+      "producer_script": "modules/local/tescorer/resources/usr/bin/te_scorer.py",
+      "consumer_modules": [
+        "CURATION_DELIVERABLES"
+      ],
+      "columns": [
+        "transcript_id",
+        "gene_id",
+        "chrom",
+        "start",
+        "end",
+        "strand",
+        "exons",
+        "cds_bp",
+        "score",
+        "tier",
+        "tier_name",
+        "te_overlap_pct",
+        "unknown_overlap_pct",
+        "sat_overlap_pct",
+        "te_classes",
+        "te_domains",
+        "host_domains_count",
+        "evidence_reasons"
+      ],
+      "status_column": "tier_name",
+      "allowed_statuses": [
+        "Confirmed_Host",
+        "Putative_Host",
+        "Ambiguous_TE_Derived",
+        "Definitive_TE"
+      ]
+    },
+    "operons_summary.tsv": {
+      "file_pattern": "*_operons_summary.tsv",
+      "producer_module": "SLOPPR_OPERONS",
+      "producer_script": "modules/local/sloppr/operons/resources/usr/bin/sloppr_operons.py",
+      "consumer_modules": [
+        "TESCORER"
+      ],
+      "columns": [
+        "operon_id",
+        "chrom",
+        "strand",
+        "start",
+        "end",
+        "num_cistrons",
+        "cistron_ids"
+      ]
+    },
+    "satellite_families.tsv": {
+      "file_pattern": "*_satellite_families.tsv",
+      "producer_module": "SATELLITEPROFILER",
+      "producer_script": "modules/local/satelliteprofiler/resources/usr/bin/satellite_profiler.py",
+      "consumer_modules": [
+        "TESCORER"
+      ],
+      "columns": [
+        "family_id",
+        "centroid_id",
+        "monomer_length_bp",
+        "gc_percent",
+        "total_coverage_bp",
+        "copy_count",
+        "array_count"
+      ]
+    },
+    "trf_summary.tsv": {
+      "file_pattern": "*_trf_summary.tsv",
+      "producer_module": "SATELLITEFILTER",
+      "producer_script": "modules/local/satellitefilter/resources/usr/bin/filter_trf_satellites.py",
+      "consumer_modules": [
+        "SATELLITEPROFILER"
+      ],
+      "columns": [
+        "seq_id",
+        "start",
+        "end",
+        "period",
+        "copies",
+        "pct_matches",
+        "score",
+        "consensus_len",
+        "consensus_seq"
+      ]
+    },
+    "cluster_summary.tsv": {
+      "file_pattern": "*_cluster_summary.tsv",
+      "producer_module": "SLIDR_CLUSTERTAILS",
+      "producer_script": "modules/local/slidr/clustertails/resources/usr/bin/slidr_cluster_tails.py",
+      "consumer_modules": [
+        "SLIDR_CONSENSUS"
+      ],
+      "columns": [
+        "centroid_id",
+        "sequence",
+        "reads",
+        "unique_tails",
+        "length"
+      ]
+    },
+    "readinfo.tsv.gz": {
+      "file_pattern": "*_readinfo.tsv.gz",
+      "producer_module": "SLIDR_CLUSTERTAILS",
+      "producer_script": "modules/local/slidr/clustertails/resources/usr/bin/slidr_cluster_tails.py",
+      "consumer_modules": [
+        "SLIDR_CONSENSUS"
+      ],
+      "columns": [
+        "read_id",
+        "centroid_id"
+      ]
+    },
+    "sl_summary.tsv": {
+      "file_pattern": "*_sl_summary.tsv",
+      "producer_module": "SLIDR_CONSENSUS",
+      "producer_script": "modules/local/slidr/consensus/resources/usr/bin/slidr_consensus.py",
+      "consumer_modules": [
+        "SLOPPR_OPERONS"
+      ],
+      "columns": [
+        "sl_name",
+        "consensus",
+        "length",
+        "reads",
+        "acceptor_sites",
+        "leader_RNA_genes",
+        "rfam_validation"
+      ]
+    },
+    "sl_site_pool.tsv": {
+      "file_pattern": "*_sl_site_pool.tsv",
+      "producer_module": "SLIDR_CONSENSUS",
+      "producer_script": "modules/local/slidr/consensus/resources/usr/bin/slidr_consensus.py",
+      "consumer_modules": [
+        "SLIDR_TSSEXPORTER"
+      ],
+      "columns": [
+        "chrom",
+        "pos",
+        "strand",
+        "reads",
+        "n_libraries",
+        "n_centroids",
+        "top_tail",
+        "top_tail_reads"
+      ]
+    },
+    "acceptor_sites.tsv.gz": {
+      "file_pattern": "*.acceptor_sites.tsv.gz",
+      "producer_module": "SLIDR_EXTRACTTAILS",
+      "producer_script": "modules/local/slidr/extracttails/resources/usr/bin/slidr_extract_tails.py",
+      "consumer_modules": [
+        "SLIDR_CONSENSUS"
+      ],
+      "columns": [
+        "read_id",
+        "chrom",
+        "junction_pos_0based",
+        "junction_pos_1based",
+        "strand",
+        "tail_type",
+        "clip_len",
+        "tail_seq",
+        "genomic_dinuc",
+        "is_canonical_ag"
+      ]
+    },
+    "sl_rna_candidates.tsv": {
+      "file_pattern": "*.sl_rna_candidates.tsv",
+      "producer_module": "SLIDR_SLRNAFILTER",
+      "producer_script": "modules/local/slidr/slrnafilter/resources/usr/bin/slidr_filter_sl_rna.py",
+      "consumer_modules": [
+        "SLIDR_CONSENSUS"
+      ],
+      "columns": [
+        "centroid_id",
+        "chrom",
+        "sl_start",
+        "sl_end",
+        "strand",
+        "sl_seq",
+        "donor_motif",
+        "sm_motif",
+        "sl_rna_seq"
+      ]
+    },
+    "tss_metrics.tsv": {
+      "file_pattern": "*.tss_metrics.tsv",
+      "producer_module": "SLIDR_TSSEXPORTER",
+      "producer_script": "modules/local/slidr/tssexporter/resources/usr/bin/slidr_tss_exporter.py",
+      "consumer_modules": [
+        "QC_DELIVERABLES"
+      ],
+      "columns": [
+        "metric",
+        "count"
+      ]
+    },
+    "tail_stats.json": {
+      "file_pattern": "*.tail_stats.json",
+      "producer_module": "SLIDR_EXTRACTTAILS",
+      "producer_script": "modules/local/slidr/extracttails/resources/usr/bin/slidr_extract_tails.py",
+      "consumer_modules": [
+        "QC_DELIVERABLES"
+      ],
+      "required_keys": [
+        "total_processed_alignments",
+        "extracted_sl_tails",
+        "canonical_ag_tails",
+        "canonical_ag_percentage",
+        "unique_junction_sites",
+        "min_tail_length",
+        "strandedness"
+      ]
+    }
+  }
+}

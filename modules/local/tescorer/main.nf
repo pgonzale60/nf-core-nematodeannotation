@@ -40,7 +40,7 @@ process TESCORER {
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch "${prefix}.gene_te_scores.tsv"
+    printf "transcript_id\\tgene_id\\tchrom\\tstart\\tend\\tstrand\\texons\\tcds_bp\\tscore\\ttier\\ttier_name\\tte_overlap_pct\\tunknown_overlap_pct\\tsat_overlap_pct\\tte_classes\\tte_domains\\thost_domains_count\\tevidence_reasons\\n" > "${prefix}.gene_te_scores.tsv"
     touch "${prefix}.te_scoring_summary.md"
     """
 }
